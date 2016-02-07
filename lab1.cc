@@ -85,7 +85,7 @@ m_height = atoi(token);
 //fgets(line,256,inFilePointer); //skip blank
 
 while(fgets(line,256,inFilePointer) != NULL){ //gets box id line
- //fgets(line,256,inFilePointer); //skip blank
+ fgets(line,256,inFilePointer); //skip blank
   Box b;
   token = strtok(line,delim);
   //if(strncmp(token,"\n",3)){continue;}
@@ -220,12 +220,19 @@ while(fgets(line,256,inFilePointer) != NULL){ //gets box id line
   //printf("dsv is %lf\n",dsv);
   Box_Map[box_id].dsv = dsv;
 }
-
+int test = get_neighbor_contact_length(Box_Map[4],Box_Map[1],0);
+printf("length was %d\n",test);
+ test = get_neighbor_contact_length(Box_Map[4],Box_Map[7],0);
+printf("length was %d\n",test);
+ test = get_neighbor_contact_length(Box_Map[4],Box_Map[3],1);
+printf("length was %d\n",test);
+ test = get_neighbor_contact_length(Box_Map[4],Box_Map[5],1);
+printf("length was %d\n",test);
 clock_t begin = clock();
 //std::chrono::time_point<std::chrono::system_clock> start, end;
 //start = std::chrono::system_clock::now();
 int p;
-while(p < 2000 /*is_converged(epsilon,num_boxes,Box_Map) != 1*/){
+while(is_converged(epsilon,num_boxes,Box_Map) != 1 && p < 300){
   p++;
   //printf("here\n");
   int i;
@@ -277,8 +284,12 @@ while(p < 2000 /*is_converged(epsilon,num_boxes,Box_Map) != 1*/){
        rght_temp_sum = t * len;
      }
      int perim = 2*b.w + 2*b.h;
-     /*if(b.xPos != 0 && b.yPos != 0){
-       perim += b.w + b.h;
+     /*if(b.xPos == 0 and b.yPos == 0){
+       perim = perim - (b.w + b.h);
+     }else if(b.xPos == 0){
+       perim = perim - b.h;
+     }else if(b.yPos == 0){
+       perim = perim - b.w;
      }*/
 
      average_surrounding_temp = (top_temp_sum + btm_temp_sum + rght_temp_sum
@@ -287,10 +298,10 @@ while(p < 2000 /*is_converged(epsilon,num_boxes,Box_Map) != 1*/){
      printf("Box: %d ast is: %lf\n",i,average_surrounding_temp);
      printf("Box: %d updated_dsv is: %lf\n\n\n",i,Box_Map[i].updtd_dsv);
 
-    if(is_converged(epsilon,num_boxes,Box_Map) == 1){
+  /*  if(is_converged(epsilon,num_boxes,Box_Map) == 1){
       printf("converged\n");
       break;
-    }
+    }*/
   }
   int k;
   for(k = 0; k < num_boxes; k++){
@@ -299,6 +310,7 @@ while(p < 2000 /*is_converged(epsilon,num_boxes,Box_Map) != 1*/){
     //printf("old dsv %lf\n",Box_Map[k].dsv);
     //printf("updated dsv %lf\n",Box_Map[k].updtd_dsv);
     Box_Map[k].dsv = Box_Map[k].updtd_dsv;
+    printf("I: %d Box %d:  dsv %lf\n",p,k,Box_Map[k].dsv);
   }
   //printf("----------------------------------------------\n");
 } //end loop;
@@ -351,13 +363,13 @@ int is_converged(double epsln, int n_boxes, map<int,Box> Box_Map){
        max_dsv = b.dsv;
      }
   }
-  double diff = max_dsv - min_dsv;
-  printf("max dsv is: %lf\n",max_dsv);
-  printf("min dsv is: %lf\n",min_dsv);
+  double diff = (max_dsv - min_dsv) / max_dsv;
+  //printf("max dsv is: %lf\n",max_dsv);
+//  printf("min dsv is: %lf\n",min_dsv);
   int ret_val = 0;
-  double epMax = epsln * max_dsv;
-  printf("diff %lf  epMax  %lf\n",diff,epMax);
-  if(diff <= epMax){
+  //double epMax = diff;
+//  printf("diff %lf  epMax  %lf\n",diff,epMax);
+  if(diff <= epsln){
     ret_val = 1;
   }
   return ret_val;
