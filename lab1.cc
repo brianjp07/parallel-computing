@@ -20,20 +20,20 @@ int m_height = 0;
 
 typedef struct BoxInfo{
   int xPos,yPos,h,w;
-  int n_topNghbrs;
-  int n_botNghbrs;
-  int n_lftNghbrs;
-  int n_rhtNghbrs;
-  double dsv;
-  double updtd_dsv; //temportally hold updated value
-  int *t_Nghbrs;
-  int *b_Nghbrs;
-  int *l_Nghbrs;
-  int *r_Nghbrs;
+  int n_topNghbrs; //number of top neighbors
+  int n_botNghbrs; //number of bottom neighbors
+  int n_lftNghbrs; //number of left neighbors
+  int n_rhtNghbrs; //number of right neighbors
+  float dsv;
+  float updtd_dsv; //temportally hold updated value
+  int *t_Nghbrs; //top neighbors
+  int *b_Nghbrs; //bottom neighbors
+  int *l_Nghbrs; //left neighbors
+  int *r_Nghbrs; //right neighbors
 } Box;
 
 int get_neighbor_contact_length(Box b, Box n, int side_or_not);
-int is_converged(double epsln,int num_boxes, map<int,Box> Box_Map);
+int is_converged(float epsln,int num_boxes, map<int,Box> Box_Map);
 
 int main(int argc, char* argv[]){
 
@@ -44,15 +44,15 @@ if(argc < 3){
 }
 map<int,Box> Box_Map;
 char *inFileName = argv[1];
-double epsilon;
-double affect_rate;
+float epsilon;
+float affect_rate;
 
 
-sscanf(argv[2],"%lf",&epsilon);
-//printf("epsilon is %lf\n",epsilon);
+sscanf(argv[2],"%f",&epsilon);
+//printf("epsilon is %f\n",epsilon);
 
-sscanf(argv[3],"%lf",&affect_rate);
-//printf("affect_rate is %lf\n",affect_rate);
+sscanf(argv[3],"%f",&affect_rate);
+//printf("affect_rate is %f\n",affect_rate);
 char line[256];
 FILE *inFilePointer;
 inFilePointer = fopen(inFileName,"r");
@@ -70,28 +70,28 @@ const char delim[3] = " \t";
 char *token;
 
 token = strtok(line,delim);
-num_boxes = atoi(token);
+num_boxes = atoi(token); //set number of boxes
 //printf("number of boxes is: %d\n",num_boxes);
 
 token = strtok(NULL,delim);
-m_width = atoi(token);
+m_width = atoi(token); //set width of grid
 //printf("b width is: %d\n",m_width);
 
 token = strtok(NULL,delim);
-m_height = atoi(token);
-//printf("b height is: %d\n",m_height);
-
-
-//fgets(line,256,inFilePointer); //skip blank
+m_height = atoi(token); //set height of grid
 
 while(fgets(line,256,inFilePointer) != NULL){ //gets box id line
- fgets(line,256,inFilePointer); //skip blank
+
+  if(line[0] == '\n'){
+    fgets(line,256,inFilePointer); //skip if line is blank
+  }
+
   Box b;
   token = strtok(line,delim);
   //if(strncmp(token,"\n",3)){continue;}
   int box_id = atoi(token);
 
-  if(box_id == -1){break;}
+  if(box_id == -1){break;} //if token is -1, exit loop
   //printf("box id is: %d\n",box_id);
 
   fgets(line,256,inFilePointer); // box pos and H and W
@@ -137,7 +137,7 @@ while(fgets(line,256,inFilePointer) != NULL){ //gets box id line
     }
 
    Box_Map[box_id].t_Nghbrs = t_neighbors;
-    fgets(line,256,inFilePointer); //bottom neighbore line
+    fgets(line,256,inFilePointer); //bottom neighbor line
   }else{
     fgets(line,256,inFilePointer); // bottom neighbor line
   }
@@ -215,130 +215,129 @@ while(fgets(line,256,inFilePointer) != NULL){ //gets box id line
 
   fgets(line,256,inFilePointer); //dsv
   token = strtok(line,delim);
-  double dsv;
-  sscanf(token,"%lf",&dsv);
-  //printf("dsv is %lf\n",dsv);
+  float dsv;
+  sscanf(token,"%f",&dsv);
+  //printf("dsv is %f\n",dsv);
   Box_Map[box_id].dsv = dsv;
 }
-int test = get_neighbor_contact_length(Box_Map[4],Box_Map[1],0);
-printf("length was %d\n",test);
- test = get_neighbor_contact_length(Box_Map[4],Box_Map[7],0);
-printf("length was %d\n",test);
- test = get_neighbor_contact_length(Box_Map[4],Box_Map[3],1);
-printf("length was %d\n",test);
- test = get_neighbor_contact_length(Box_Map[4],Box_Map[5],1);
-printf("length was %d\n",test);
+
 clock_t begin = clock();
 //std::chrono::time_point<std::chrono::system_clock> start, end;
 //start = std::chrono::system_clock::now();
-int p;
-while(is_converged(epsilon,num_boxes,Box_Map) != 1 && p < 300){
+int p = 0;
+while(is_converged(epsilon,num_boxes,Box_Map) != 1 /*&& p < 40000*/){
   p++;
   //printf("here\n");
   int i;
   for(i = 0; i < num_boxes; i++){
      Box b = Box_Map[i];
-     double box_new_dsv;
-     double average_surrounding_temp;
+     float box_new_dsv;
+     float average_surrounding_temp;
 
-     double top_temp_sum = 0;
-
+     //top neighbors
+     float top_temp_sum = 0;
      int j;
      for(j = 0; j < b.n_topNghbrs; j++){
        Box t_n_box = Box_Map[Box_Map[i].t_Nghbrs[j]];
-       double t = t_n_box.dsv;
+       float t = t_n_box.dsv;
        int len = get_neighbor_contact_length(b,t_n_box,0);
-       top_temp_sum = t * len;
+       top_temp_sum += (t * len);
      }
 
-
-     double btm_temp_sum = 0;
-
+     //bottom neighbors
+     float btm_temp_sum = 0;
 
      for(j = 0; j < b.n_botNghbrs; j++){
        Box t_n_box = Box_Map[Box_Map[i].b_Nghbrs[j]];
-       double t = t_n_box.dsv;
+       float t = t_n_box.dsv;
        int len = get_neighbor_contact_length(b,t_n_box,0);
-       btm_temp_sum = t * len;
+       btm_temp_sum += (t * len);
      }
 
-     //Left
-     double lft_temp_sum = 0;
+     //Left neighbors
+     float lft_temp_sum = 0;
 
      for(j = 0; j < b.n_lftNghbrs; j++){
        Box t_n_box = Box_Map[Box_Map[i].l_Nghbrs[j]];
-       double t = t_n_box.dsv;
+       float t = t_n_box.dsv;
        int len = get_neighbor_contact_length(b,t_n_box,1);
-       lft_temp_sum = t * len;
+       lft_temp_sum += (t * len);
      }
 
 
-     //right
-     //printf("Right\n");
-     double rght_temp_sum = 0;
+     //right neighbors
+     float rght_temp_sum = 0;
 
      for(j = 0; j < b.n_rhtNghbrs; j++){
        Box t_n_box = Box_Map[Box_Map[i].r_Nghbrs[j]];
-       double t = t_n_box.dsv;
+       float t = t_n_box.dsv;
        int len = get_neighbor_contact_length(b,t_n_box,1);
-       rght_temp_sum = t * len;
+       rght_temp_sum += (t * len);
      }
-     int perim = 2*b.w + 2*b.h;
-     /*if(b.xPos == 0 and b.yPos == 0){
-       perim = perim - (b.w + b.h);
-     }else if(b.xPos == 0){
-       perim = perim - b.h;
-     }else if(b.yPos == 0){
-       perim = perim - b.w;
-     }*/
+     int perim = 2*(b.w + b.h);
+
+     //set outside boxes to current box dsv
+     if(top_temp_sum == 0){
+       top_temp_sum = b.dsv * b.w;
+     }
+     if(btm_temp_sum == 0){
+       btm_temp_sum = b.dsv * b.w;
+     }
+     if(lft_temp_sum == 0){
+       lft_temp_sum = b.dsv * b.h;
+     }
+     if(rght_temp_sum == 0){
+       rght_temp_sum = b.dsv * b.h;
+     }
+
 
      average_surrounding_temp = (top_temp_sum + btm_temp_sum + rght_temp_sum
-       + lft_temp_sum) / (double)(perim);
+       + lft_temp_sum) / (float)(perim);
      Box_Map[i].updtd_dsv = b.dsv - (b.dsv - average_surrounding_temp) * affect_rate;
-     printf("Box: %d ast is: %lf\n",i,average_surrounding_temp);
-     printf("Box: %d updated_dsv is: %lf\n\n\n",i,Box_Map[i].updtd_dsv);
 
-  /*  if(is_converged(epsilon,num_boxes,Box_Map) == 1){
-      printf("converged\n");
-      break;
-    }*/
   }
   int k;
   for(k = 0; k < num_boxes; k++){
-    //printf("box %d updated\n",k);
 
-    //printf("old dsv %lf\n",Box_Map[k].dsv);
-    //printf("updated dsv %lf\n",Box_Map[k].updtd_dsv);
     Box_Map[k].dsv = Box_Map[k].updtd_dsv;
-    printf("I: %d Box %d:  dsv %lf\n",p,k,Box_Map[k].dsv);
+    //printf("I: %d Box %d:  dsv %f\n",p,k,Box_Map[k].dsv);
   }
   //printf("----------------------------------------------\n");
 } //end loop;
   //std::time_t end_time = std::chrono::system_clock::to_time_t(end);
 clock_t end = clock();
-double clck_secs = double(end - begin) / CLOCKS_PER_SEC;
-  double max_dsv = Box_Map[0].dsv;
-  double min_dsv = Box_Map[0].dsv;
-  int i;
-  for(i = 0; i < num_boxes; i++){
-     Box b = Box_Map[i];
-     if(b.dsv < min_dsv){
-       min_dsv = b.dsv;
-     }
-     if(b.dsv > max_dsv){
-       max_dsv = b.dsv;
-     }
-  }
+float clck_secs = float(end - begin) / CLOCKS_PER_SEC;
+
+float max_dsv = Box_Map[0].dsv;
+float min_dsv = Box_Map[0].dsv;
+int i;
+for(i = 0; i < num_boxes; i++){
+   Box b = Box_Map[i];
+   if(b.dsv < min_dsv){
+     min_dsv = b.dsv;
+   }
+   if(b.dsv > max_dsv){
+     max_dsv = b.dsv;
+   }
+}
+
 printf("***********************************************************\n");
 printf("Dissipation converged in %d iterations.\n",p);
-printf("Max DSV     : %lf\n",max_dsv);
-printf("Min DSV     : %lf\n",min_dsv);
-printf("Affect rate : %lf\n",affect_rate);
-printf("Epsilon     : %lf\n",epsilon);
-printf("Elapsed time (time) in seconds: %lf\n",clck_secs);
+printf("Max DSV     : %f\n",max_dsv);
+printf("Min DSV     : %f\n",min_dsv);
+printf("Affect rate : %f\n",affect_rate);
+printf("Epsilon     : %f\n",epsilon);
+printf("Elapsed time (time) in seconds: %f\n",clck_secs);
 
 /*std::cout << "finished computation at " << std::ctime(&end_time)
              << "elapsed time: " << elapsed_seconds.count() << "s\n";*/
+
+
+/*for(i = 0; i < num_boxes; i++){
+ printf("Box: %d DSV: %f \n",i,Box_Map[i].dsv);
+
+}*/
+
 for(i = 0; i < num_boxes; i++){
   free(Box_Map[i].t_Nghbrs);
   free(Box_Map[i].b_Nghbrs);
@@ -349,13 +348,15 @@ for(i = 0; i < num_boxes; i++){
 return 0;
 }
 
-int is_converged(double epsln, int n_boxes, map<int,Box> Box_Map){
+int is_converged(float epsln, int n_boxes, map<int,Box> Box_Map){
 
-  double max_dsv = Box_Map[0].dsv;
-  double min_dsv = Box_Map[0].dsv;
+  float max_dsv = Box_Map[0].dsv;
+  float min_dsv = Box_Map[0].dsv;
   int i;
   for(i = 0; i < n_boxes; i++){
+
      Box b = Box_Map[i];
+    
      if(b.dsv < min_dsv){
        min_dsv = b.dsv;
      }
@@ -363,13 +364,13 @@ int is_converged(double epsln, int n_boxes, map<int,Box> Box_Map){
        max_dsv = b.dsv;
      }
   }
-  double diff = (max_dsv - min_dsv) / max_dsv;
-  //printf("max dsv is: %lf\n",max_dsv);
-//  printf("min dsv is: %lf\n",min_dsv);
+
+  float diff = (max_dsv - min_dsv);
+
   int ret_val = 0;
-  //double epMax = diff;
-//  printf("diff %lf  epMax  %lf\n",diff,epMax);
-  if(diff <= epsln){
+
+
+  if(diff <= epsln*max_dsv ){
     ret_val = 1;
   }
   return ret_val;
@@ -384,48 +385,51 @@ int get_neighbor_contact_length(Box b, Box n, int side_or_not){
 
   int nx = n.xPos;
   int ny = n.yPos;
-  //printf("box y %d h %d \n",b.yPos,b.h);
-  //printf("box y %d h %d \n",n.yPos,n.h);
-  int nh = n.h;
   int nw = n.w;
-  int by_tlt_space = (by+bh);
-  //printf("by_tlt_space is %d\n",by_tlt_space);
-  int bx_tlt_space = (bx+bw);
-  int ny_tlt_space = (ny+nh);
-  //printf("ny_tlt_space is %d\n",ny_tlt_space);
-  int nx_tlt_space = (nx+nw);
+  int nh = n.h;
+/*
+  printf("box b x %d w %d \n",b.xPos,b.w);
+  printf("box n x %d w %d \n",n.xPos,n.w);
+  printf("box b y %d h %d \n",b.yPos,b.h);
+  printf("box n y %d h %d \n",n.yPos,n.h);
+*/
+  int len;
 
-  int yDiff = abs(ny_tlt_space - by_tlt_space);
-  //printf("ydiff is %d\n",yDiff);
-  int xDiff = abs(nx_tlt_space - bx_tlt_space);
-
-  int len = 0;
-  if(side_or_not == 1){ //it is a side length we are computing
-    if(yDiff != 0){
-      if(by_tlt_space <= ny_tlt_space){
-        len = ny_tlt_space - yDiff;
-      }else{
-        len = by_tlt_space - yDiff;
+  if(side_or_not == 1){
+    if(ny < by){
+      len = (nh + ny) - by;
+      if( (by+bh) < (ny + nh) ){
+        len = len - ( (ny + nh) - (by + bh) );
       }
-
     }else{
-      len = b.h;
+      if( (ny + nh) < (by + bh)){
+        len = nh;
+      }else{
+        len =(by+bh) - ny;
+      }
     }
-  }else{ //it is top or bottom length we are computing
-    if(xDiff != 0){
-      if(bx_tlt_space <= nx_tlt_space){
-        len = nx_tlt_space - xDiff;
-      }else{
-        len = bx_tlt_space - xDiff;
+  }else{
+    if(nx < bx){
+      len = (nw + nx) - bx;
+      if( (bx+bw) < (nx + nw) ){
+        len = len - ( (nx + nw) - (bx + bw) );
       }
     }else{
-      len = b.w;
+      if( (nx + nw) < (bx + bw)){
+        len = nw;
+
+      }else{
+
+        len =(bx+bw) - nx;
+      }
     }
   }
 
  return len;
 }
 
+
+/**************   TESTING SECTION FOR REFERENCE *****************/
 /*
 
 printf("\n\n");
@@ -476,7 +480,7 @@ for(i = 0; i < num_boxes; i++){
     printf(" %d",Box_Map[i].r_Nghbrs[j]);
   }
   printf("\n");
-  printf("Box DSV  : %lf\n",Box_Map[i].dsv);
+  printf("Box DSV  : %f\n",Box_Map[i].dsv);
   printf("##########################\n");
 } //end print t */
 /*
@@ -489,3 +493,58 @@ printf("36 35 length was %d\n",test);
 test = get_neighbor_contact_length(Box_Map[36],Box_Map[37],1);
 printf("36 37 length was %d\n",test);*/
 //printf("entering is converged loop;\n");
+
+/*
+//bottom neighbor tests
+int test = get_neighbor_contact_length(Box_Map[1],Box_Map[5],0);
+printf("box 1 neighbor 5 length was %d\n",test);
+ test = get_neighbor_contact_length(Box_Map[1],Box_Map[6],0);
+printf("box 1 neighbor 6 length was %d\n",test);
+ test = get_neighbor_contact_length(Box_Map[1],Box_Map[7],0);
+printf("box 1 neighbor 7 length was %d\n",test);
+ test = get_neighbor_contact_length(Box_Map[1],Box_Map[8],0);
+printf("box 1 neighbor 8 length was %d\n",test);
+//top nieghtbor test
+test = get_neighbor_contact_length(Box_Map[5],Box_Map[1],0);
+printf("box 5 neighbor 1 length was %d\n",test);
+ test = get_neighbor_contact_length(Box_Map[6],Box_Map[1],0);
+printf("box 6 neighbor 1 length was %d\n",test);
+//printf("Box 7 x: %d y: %d nT: %d neig: %d\n",Box_Map[7].xPos,Box_Map[7].yPos, Box_Map[7].n_topNghbrs, Box_Map[7].t_Nghbrs[0]);
+ test = get_neighbor_contact_length(Box_Map[7],Box_Map[1],0);
+printf("box 7 neighbor 1 length was %d\n",test);
+ test = get_neighbor_contact_length(Box_Map[8],Box_Map[1],0);
+printf("box 8 neighbor 1 length was %d\n",test);
+//left nieghbor test
+test = get_neighbor_contact_length(Box_Map[8],Box_Map[7],1);
+printf("box 8 neighbor 7 length was %d\n",test);
+ test = get_neighbor_contact_length(Box_Map[8],Box_Map[9],1);
+printf("box 8 neighbor 9 length was %d\n",test);
+ test = get_neighbor_contact_length(Box_Map[8],Box_Map[10],1);
+printf("box 8 neighbor 10 length was %d\n",test);
+ test = get_neighbor_contact_length(Box_Map[8],Box_Map[11],1);
+printf("box 8 neighbor 11 length was %d\n",test);
+//right neighbor tests
+test = get_neighbor_contact_length(Box_Map[6],Box_Map[7],1);
+printf("box 6 neighbor 7 length was %d\n",test);
+ test = get_neighbor_contact_length(Box_Map[6],Box_Map[9],1);
+printf("box 6 neighbor 9 length was %d\n",test);
+ test = get_neighbor_contact_length(Box_Map[6],Box_Map[10],1);
+printf("box 6 neighbor 10 length was %d\n",test);
+ test = get_neighbor_contact_length(Box_Map[6],Box_Map[11],1);
+printf("box 6 neighbor 11 length was %d\n",test);
+
+test = get_neighbor_contact_length(Box_Map[7],Box_Map[9],0);
+printf("box 7 neighbor 9 length was %d\n",test);
+
+test = get_neighbor_contact_length(Box_Map[12],Box_Map[5],0);
+printf("box 12 neighbor 5 length was %d\n",test);
+ test = get_neighbor_contact_length(Box_Map[5],Box_Map[12],0);
+printf("box 5 neighbor 12 length was %d\n",test);
+ test = get_neighbor_contact_length(Box_Map[12],Box_Map[6],0);
+printf("box 12 neighbor 6 length was %d\n",test);
+ test = get_neighbor_contact_length(Box_Map[6],Box_Map[12],0);
+printf("box 6 neighbor 12 length was %d\n",test);
+test = get_neighbor_contact_length(Box_Map[13],Box_Map[14],1);
+printf("box 13 neighbor 14 length was %d\n",test);
+test = get_neighbor_contact_length(Box_Map[14],Box_Map[13],1);
+printf("box 14 neighbor 13 length was %d\n",test);*/
