@@ -1,10 +1,12 @@
 #include <stdio.h>
 #include <string.h>
 #include <strings.h>
+#include <iostream>
 #include <stdlib.h>
 #include <sys/time.h>
 #include <map>  //needed this so did C++ instead of C
 #include <ctime>
+#include <chrono>
 using namespace std;
 /*
   Brian Parks
@@ -222,8 +224,8 @@ while(fgets(line,256,inFilePointer) != NULL){ //gets box id line
 }
 
 clock_t begin = clock();
-//std::chrono::time_point<std::chrono::system_clock> start, end;
-//start = std::chrono::system_clock::now();
+
+chrono::high_resolution_clock::time_point t1 = chrono::high_resolution_clock::now();
 int p = 0;
 while(is_converged(epsilon,num_boxes,Box_Map) != 1 /*&& p < 40000*/){
   p++;
@@ -304,7 +306,9 @@ while(is_converged(epsilon,num_boxes,Box_Map) != 1 /*&& p < 40000*/){
   }
   //printf("----------------------------------------------\n");
 } //end loop;
-  //std::time_t end_time = std::chrono::system_clock::to_time_t(end);
+chrono::high_resolution_clock::time_point t2 = chrono::high_resolution_clock::now();
+chrono::duration<double> time_span = chrono::duration_cast< chrono::duration<double> > (t2 - t1);
+
 clock_t end = clock();
 float clck_secs = float(end - begin) / CLOCKS_PER_SEC;
 
@@ -328,7 +332,7 @@ printf("Min DSV     : %f\n",min_dsv);
 printf("Affect rate : %f\n",affect_rate);
 printf("Epsilon     : %f\n",epsilon);
 printf("Elapsed time (time) in seconds: %f\n",clck_secs);
-
+std::cout << "Chrono Time in seconds  : " << time_span.count();
 /*std::cout << "finished computation at " << std::ctime(&end_time)
              << "elapsed time: " << elapsed_seconds.count() << "s\n";*/
 
@@ -356,7 +360,7 @@ int is_converged(float epsln, int n_boxes, map<int,Box> Box_Map){
   for(i = 0; i < n_boxes; i++){
 
      Box b = Box_Map[i];
-    
+
      if(b.dsv < min_dsv){
        min_dsv = b.dsv;
      }
