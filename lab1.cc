@@ -234,7 +234,7 @@ while(fgets(line,256,inFilePointer) != NULL){ //gets box id line
 
 clock_t begin = clock();
 
-chrono::high_resolution_clock::time_point t1 = chrono::high_resolution_clock::now();
+chrono::system_clock::time_point t1 = chrono::system_clock::now();
 int p = 0;
 while(is_converged(epsilon,num_boxes,Box_Map) != 1 /*&& p < 40000*/){
   p++;
@@ -315,7 +315,7 @@ while(is_converged(epsilon,num_boxes,Box_Map) != 1 /*&& p < 40000*/){
   }
   //printf("----------------------------------------------\n");
 } //end loop;
-chrono::high_resolution_clock::time_point t2 = chrono::high_resolution_clock::now();
+chrono::system_clock::time_point t2 = chrono::system_clock::now();
 chrono::duration<double> time_span = chrono::duration_cast< chrono::duration<double> > (t2 - t1);
 
 clock_t end = clock();
