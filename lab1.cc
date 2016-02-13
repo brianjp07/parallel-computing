@@ -18,7 +18,9 @@ int m_width = 0;
 int m_height = 0;
 
 
-
+/*
+  Struct to hold box information
+*/
 
 typedef struct BoxInfo{
   int xPos,yPos,h,w;
@@ -34,7 +36,10 @@ typedef struct BoxInfo{
   int *r_Nghbrs; //right neighbors
 } Box;
 
+//returns contact length between box b and n, see implemnation for more detail
 int get_neighbor_contact_length(Box b, Box n, int side_or_not);
+
+//returns 1 iff convergance condition is met, see implemnation for more detail
 int is_converged(float epsln,int num_boxes, map<int,Box> Box_Map);
 
 int main(int argc, char* argv[]){
@@ -44,6 +49,9 @@ if(argc < 3){
   perror("a.out <file> <epsilon> <affect_rate>");
   exit(1);
 }
+/*
+ Use a map to with <Key,Value> = <Box_id,Box>
+*/
 map<int,Box> Box_Map;
 char *inFileName = argv[1];
 float epsilon;
@@ -55,7 +63,8 @@ sscanf(argv[2],"%f",&epsilon);
 
 sscanf(argv[3],"%f",&affect_rate);
 //printf("affect_rate is %f\n",affect_rate);
-char line[256];
+
+char line[256];  //256 bytes should be enough for one line from input file
 FILE *inFilePointer;
 inFilePointer = fopen(inFileName,"r");
 
@@ -351,7 +360,16 @@ for(i = 0; i < num_boxes; i++){
 }
 return 0;
 }
+/*
+  @returns: 1 iff converged condition is met.
+  Converge condition:
+    MAX(Boxes.dsv) - MIN(Boxes.dsv) >= MAX(Boxes.dsv) * epsilon
+  @params: epsln user defined Epsilon
+           n_boxes total number of boxes
+           Box_Map: a map containing <Box_id,Box> pairs
 
+
+*/
 int is_converged(float epsln, int n_boxes, map<int,Box> Box_Map){
 
   float max_dsv = Box_Map[0].dsv;
@@ -379,7 +397,13 @@ int is_converged(float epsln, int n_boxes, map<int,Box> Box_Map){
   }
   return ret_val;
 }
-
+/*
+  Calculates contact distance between two boxes.
+  @params Box b: box you are computing
+          Box n: box b's neighbor
+          side_or_not: 1 iff side (so left or right box, otherwise top or bottom)
+  @returns contact length between box b and box n
+*/
 
 int get_neighbor_contact_length(Box b, Box n, int side_or_not){
   int bx = b.xPos;
