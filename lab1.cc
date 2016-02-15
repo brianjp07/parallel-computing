@@ -231,7 +231,8 @@ while(fgets(line,256,inFilePointer) != NULL){ //gets box id line
   //printf("dsv is %f\n",dsv);
   Box_Map[box_id].dsv = dsv;
 }
-
+struct timeval tv1,tv2;
+gettimeofday(&tv1,NULL);
 clock_t begin = clock();
 
 chrono::system_clock::time_point t1 = chrono::system_clock::now();
@@ -317,7 +318,7 @@ while(is_converged(epsilon,num_boxes,Box_Map) != 1 /*&& p < 40000*/){
 } //end loop;
 chrono::system_clock::time_point t2 = chrono::system_clock::now();
 chrono::duration<double> time_span = chrono::duration_cast< chrono::duration<double> > (t2 - t1);
-
+gettimeofday(&tv2,NULL);
 clock_t end = clock();
 float clck_secs = float(end - begin) / CLOCKS_PER_SEC;
 
@@ -334,14 +335,18 @@ for(i = 0; i < num_boxes; i++){
    }
 }
 
-printf("***********************************************************\n");
+printf("\n\n***********************************************************\n");
 printf("Dissipation converged in %d iterations.\n",p);
 printf("Max DSV     : %f\n",max_dsv);
 printf("Min DSV     : %f\n",min_dsv);
 printf("Affect rate : %f\n",affect_rate);
 printf("Epsilon     : %f\n",epsilon);
-printf("Elapsed time (time) in seconds: %f\n",clck_secs);
-std::cout << "Chrono Time in seconds  : " << time_span.count();
+printf("Elapsed time (clock) in seconds  : %f\n",clck_secs);
+printf ("Elapsed time (time) in seconds   : %f \n",
+         (double) (tv2.tv_usec - tv1.tv_usec) / 1000000 +
+         (double) (tv2.tv_sec - tv1.tv_sec));
+std::cout << "Elapsed time (chrono) in seconds : " << time_span.count() << "\n\n";
+printf("***********************************************************\n");
 /*std::cout << "finished computation at " << std::ctime(&end_time)
              << "elapsed time: " << elapsed_seconds.count() << "s\n";*/
 
