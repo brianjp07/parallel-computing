@@ -237,7 +237,7 @@ clock_t begin = clock();
 
 chrono::system_clock::time_point t1 = chrono::system_clock::now();
 int p = 0;
-while(is_converged(epsilon,num_boxes,Box_Map) != 1 /*&& p < 40000*/){
+while(is_converged(epsilon,num_boxes,Box_Map) != 1 ){
   p++;
   //printf("here\n");
   int i;
