@@ -36,11 +36,18 @@ typedef struct BoxInfo{
   int *r_Nghbrs; //right neighbors
 } Box;
 
+map<int,Box> Box_Map;
+float epsilon;
+float affect_rate;
+
 //returns contact length between box b and n, see implemnation for more detail
 int get_neighbor_contact_length(Box b, Box n, int side_or_not);
 
 //returns 1 iff convergance condition is met, see implemnation for more detail
 int is_converged(float epsln,int num_boxes, map<int,Box> Box_Map);
+
+//move logic to function in order for pthread to call this section of code
+void *calcNewDSVs(void *thrdNum);
 
 int main(int argc, char* argv[]){
 
@@ -52,10 +59,9 @@ if(argc < 3){
 /*
  Use a map to with <Key,Value> = <Box_id,Box>
 */
-map<int,Box> Box_Map;
+
 char *inFileName = argv[1];
-float epsilon;
-float affect_rate;
+
 
 
 sscanf(argv[2],"%f",&epsilon);
@@ -231,84 +237,18 @@ while(fgets(line,256,inFilePointer) != NULL){ //gets box id line
   //printf("dsv is %f\n",dsv);
   Box_Map[box_id].dsv = dsv;
 }
+
 struct timeval tv1,tv2;
 gettimeofday(&tv1,NULL);
 clock_t begin = clock();
-
 chrono::system_clock::time_point t1 = chrono::system_clock::now();
 int p = 0;
 while(is_converged(epsilon,num_boxes,Box_Map) != 1 ){
   p++;
   //printf("here\n");
-  int i;
-  for(i = 0; i < num_boxes; i++){
-     Box b = Box_Map[i];
-     float box_new_dsv;
-     float average_surrounding_temp;
-
-     //top neighbors
-     float top_temp_sum = 0;
-     int j;
-     for(j = 0; j < b.n_topNghbrs; j++){
-       Box t_n_box = Box_Map[Box_Map[i].t_Nghbrs[j]];
-       float t = t_n_box.dsv;
-       int len = get_neighbor_contact_length(b,t_n_box,0);
-       top_temp_sum += (t * len);
-     }
-
-     //bottom neighbors
-     float btm_temp_sum = 0;
-
-     for(j = 0; j < b.n_botNghbrs; j++){
-       Box t_n_box = Box_Map[Box_Map[i].b_Nghbrs[j]];
-       float t = t_n_box.dsv;
-       int len = get_neighbor_contact_length(b,t_n_box,0);
-       btm_temp_sum += (t * len);
-     }
-
-     //Left neighbors
-     float lft_temp_sum = 0;
-
-     for(j = 0; j < b.n_lftNghbrs; j++){
-       Box t_n_box = Box_Map[Box_Map[i].l_Nghbrs[j]];
-       float t = t_n_box.dsv;
-       int len = get_neighbor_contact_length(b,t_n_box,1);
-       lft_temp_sum += (t * len);
-     }
-
-
-     //right neighbors
-     float rght_temp_sum = 0;
-
-     for(j = 0; j < b.n_rhtNghbrs; j++){
-       Box t_n_box = Box_Map[Box_Map[i].r_Nghbrs[j]];
-       float t = t_n_box.dsv;
-       int len = get_neighbor_contact_length(b,t_n_box,1);
-       rght_temp_sum += (t * len);
-     }
-     int perim = 2*(b.w + b.h);
-
-     //set outside boxes to current box dsv
-     if(top_temp_sum == 0){
-       top_temp_sum = b.dsv * b.w;
-     }
-     if(btm_temp_sum == 0){
-       btm_temp_sum = b.dsv * b.w;
-     }
-     if(lft_temp_sum == 0){
-       lft_temp_sum = b.dsv * b.h;
-     }
-     if(rght_temp_sum == 0){
-       rght_temp_sum = b.dsv * b.h;
-     }
-
-
-     average_surrounding_temp = (top_temp_sum + btm_temp_sum + rght_temp_sum
-       + lft_temp_sum) / (float)(perim);
-     Box_Map[i].updtd_dsv = b.dsv - (b.dsv - average_surrounding_temp) * affect_rate;
-
-  }
+  calcNewDSVs((void *) 1);
   int k;
+  //update new dsv values
   for(k = 0; k < num_boxes; k++){
 
     Box_Map[k].dsv = Box_Map[k].updtd_dsv;
@@ -461,7 +401,77 @@ int get_neighbor_contact_length(Box b, Box n, int side_or_not){
  return len;
 }
 
+void *calcNewDSVs(void *thrdNum){
+  int i;
+  for(i = 0; i < num_boxes; i++){
+     Box b = Box_Map[i];
+     float box_new_dsv;
+     float average_surrounding_temp;
 
+     //top neighbors
+     float top_temp_sum = 0;
+     int j;
+     for(j = 0; j < b.n_topNghbrs; j++){
+       Box t_n_box = Box_Map[Box_Map[i].t_Nghbrs[j]];
+       float t = t_n_box.dsv;
+       int len = get_neighbor_contact_length(b,t_n_box,0);
+       top_temp_sum += (t * len);
+     }
+
+     //bottom neighbors
+     float btm_temp_sum = 0;
+
+     for(j = 0; j < b.n_botNghbrs; j++){
+       Box t_n_box = Box_Map[Box_Map[i].b_Nghbrs[j]];
+       float t = t_n_box.dsv;
+       int len = get_neighbor_contact_length(b,t_n_box,0);
+       btm_temp_sum += (t * len);
+     }
+
+     //Left neighbors
+     float lft_temp_sum = 0;
+
+     for(j = 0; j < b.n_lftNghbrs; j++){
+       Box t_n_box = Box_Map[Box_Map[i].l_Nghbrs[j]];
+       float t = t_n_box.dsv;
+       int len = get_neighbor_contact_length(b,t_n_box,1);
+       lft_temp_sum += (t * len);
+     }
+
+
+     //right neighbors
+     float rght_temp_sum = 0;
+
+     for(j = 0; j < b.n_rhtNghbrs; j++){
+       Box t_n_box = Box_Map[Box_Map[i].r_Nghbrs[j]];
+       float t = t_n_box.dsv;
+       int len = get_neighbor_contact_length(b,t_n_box,1);
+       rght_temp_sum += (t * len);
+     }
+     int perim = 2*(b.w + b.h);
+
+     //set outside boxes to current box dsv
+     if(top_temp_sum == 0){
+       top_temp_sum = b.dsv * b.w;
+     }
+     if(btm_temp_sum == 0){
+       btm_temp_sum = b.dsv * b.w;
+     }
+     if(lft_temp_sum == 0){
+       lft_temp_sum = b.dsv * b.h;
+     }
+     if(rght_temp_sum == 0){
+       rght_temp_sum = b.dsv * b.h;
+     }
+
+
+     average_surrounding_temp = (top_temp_sum + btm_temp_sum + rght_temp_sum
+       + lft_temp_sum) / (float)(perim);
+     Box_Map[i].updtd_dsv = b.dsv - (b.dsv - average_surrounding_temp) * affect_rate;
+
+  }
+  return NULL;
+}
 /**************   TESTING SECTION FOR REFERENCE *****************/
 /*
 
