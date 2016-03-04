@@ -39,6 +39,8 @@ typedef struct BoxInfo{
 map<int,Box> Box_Map;
 float epsilon;
 float affect_rate;
+pthread_t *threads;
+int number_of_threads = 200;
 
 //returns contact length between box b and n, see implemnation for more detail
 int get_neighbor_contact_length(Box b, Box n, int side_or_not);
@@ -237,7 +239,7 @@ while(fgets(line,256,inFilePointer) != NULL){ //gets box id line
   //printf("dsv is %f\n",dsv);
   Box_Map[box_id].dsv = dsv;
 }
-
+threads = (pthread_t *) malloc(sizeof(*threads) * number_of_threads);
 struct timeval tv1,tv2;
 gettimeofday(&tv1,NULL);
 clock_t begin = clock();
@@ -246,7 +248,18 @@ int p = 0;
 while(is_converged(epsilon,num_boxes,Box_Map) != 1 ){
   p++;
   //printf("here\n");
-  calcNewDSVs((void *) 1);
+  int treturn;
+  int box_index;
+  long tc;
+  for(tc = 0; tc < num_boxes;tc++){
+    box_index = tc % number_of_threads;
+    treturn = pthread_create(&threads[box_index],NULL,calcNewDSVs,(void *)tc);
+      for(long t = 0; t < box_index; t++){
+        treturn = pthread_join(threads[t],NULL);
+      }
+  
+  }
+
   int k;
   //update new dsv values
   for(k = 0; k < num_boxes; k++){
@@ -400,10 +413,10 @@ int get_neighbor_contact_length(Box b, Box n, int side_or_not){
 
  return len;
 }
-
+//calculates new dsv for a box[i] wh
 void *calcNewDSVs(void *thrdNum){
-  int i;
-  for(i = 0; i < num_boxes; i++){
+  long i = (long)thrdNum;
+  //for(i = 0; i < num_boxes; i++){ converted for pthreads in main
      Box b = Box_Map[i];
      float box_new_dsv;
      float average_surrounding_temp;
@@ -469,7 +482,8 @@ void *calcNewDSVs(void *thrdNum){
        + lft_temp_sum) / (float)(perim);
      Box_Map[i].updtd_dsv = b.dsv - (b.dsv - average_surrounding_temp) * affect_rate;
 
-  }
+  //}
+  pthread_exit(NULL);
   return NULL;
 }
 /**************   TESTING SECTION FOR REFERENCE *****************/
