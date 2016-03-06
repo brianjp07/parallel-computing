@@ -99,7 +99,7 @@ m_height = atoi(token); //set height of grid
 
 while(fgets(line,256,inFilePointer) != NULL){ //gets box id line
 
-  if(line[0] == '\n'){
+  while(line[0] == '\n'){
     fgets(line,256,inFilePointer); //skip if line is blank
   }
 
@@ -109,7 +109,7 @@ while(fgets(line,256,inFilePointer) != NULL){ //gets box id line
   int box_id = atoi(token);
 
   if(box_id == -1){break;} //if token is -1, exit loop
-  //printf("box id is: %d\n",box_id);
+  printf("box id is: %d\n",box_id);
 
   fgets(line,256,inFilePointer); // box pos and H and W
 
