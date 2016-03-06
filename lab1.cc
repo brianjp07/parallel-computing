@@ -101,7 +101,7 @@ m_height = atoi(token); //set height of grid
 
 while(fgets(line,256,inFilePointer) != NULL){ //gets box id line
 
-  if(line[0] == '\n'){
+  while(line[0] == '\n'){
     fgets(line,256,inFilePointer); //skip if line is blank
   }
 
@@ -257,7 +257,7 @@ while(is_converged(epsilon,num_boxes,Box_Map) != 1 ){
       for(long t = 0; t < box_index; t++){
         treturn = pthread_join(threads[t],NULL);
       }
-  
+
   }
 
   int k;
