@@ -39,7 +39,7 @@ typedef struct BoxInfo{
 map<int,Box> Box_Map;
 float epsilon;
 float affect_rate;
-pthread_t *threads;
+
 int number_of_threads = 200;
 
 //returns contact length between box b and n, see implemnation for more detail
@@ -278,6 +278,8 @@ while(is_converged(epsilon,num_boxes,Box_Map) != 1 ){
   int treturn;
   int box_index;
   long tc;
+  pthread_t *threads; //declare interally, threads will be disposed everyloop
+  threads = (pthread_t *)malloc(sizeof(*thread)*number_of_threads);
   for(tc = 0; tc < num_boxes;tc++){
     box_index = tc % number_of_threads;
     treturn = pthread_create(&threads[box_index],NULL,calcNewDSVs,(void *)tc);
