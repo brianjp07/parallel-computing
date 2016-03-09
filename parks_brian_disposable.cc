@@ -276,19 +276,20 @@ while(is_converged(epsilon,num_boxes,Box_Map) != 1 ){
   p++;
   //printf("here\n");
   int treturn;
-  int box_index;
-  long tc;
+  int thread_index;
+  long l;
   pthread_t *threads; //declare interally, threads will be disposed everyloop
   threads = (pthread_t *)malloc(sizeof(*thread)*number_of_threads);
-  for(tc = 0; tc < num_boxes;tc++){
-    box_index = tc % number_of_threads;
-    treturn = pthread_create(&threads[box_index],NULL,calcNewDSVs,(void *)tc);
-      for(long t = 0; t < box_index; t++){
-        treturn = pthread_join(threads[t],NULL);
-      }
+  for(l = 0; l < num_boxes;l++){
+    thread_index = l % number_of_threads;
+    treturn = pthread_create(&threads[thread_index],NULL,calcNewDSVs,(void *)l);
 
   }
-
+  //wait for threads to complete before moving on to update the dsv for boxes
+  for(l = 0; l < num_boxes; l++){
+    thread_index = l % number_of_threads;
+    pthread_join(threads[thread_index],NULL);
+  }
   int k;
   //update new dsv values
   for(k = 0; k < num_boxes; k++){

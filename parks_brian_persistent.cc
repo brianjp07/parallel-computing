@@ -17,7 +17,7 @@ int num_boxes = 0;
 int m_width = 0;
 int m_height = 0;
 
-
+std::mutex mtx;
 /*
   Struct to hold box information
 */
@@ -276,15 +276,22 @@ while(is_converged(epsilon,num_boxes,Box_Map) != 1 ){
   p++;
   //printf("here\n");
   int treturn;
-  int box_index;
-  long tc;
-  for(tc = 0; tc < num_boxes;tc++){
-    box_index = tc % number_of_threads;
-    treturn = pthread_create(&threads[box_index],NULL,calcNewDSVs,(void *)tc);
-      for(long t = 0; t < box_index; t++){
-        treturn = pthread_join(threads[t],NULL);
-      }
+  int thread_index;
+  long l; //make long to avoid warnings in pthread_create
+  //int old_thread_index = -1;
+  for(l = 0; l < num_boxes; l++){
+    thread_index = l % number_of_threads;
+    /*if(old_thread_index != -1){
 
+    }*/
+    treturn = pthread_create(&threads[thread_index],NULL,calcNewDSVs,(void *)l);
+
+
+  //  wait for threads to complete before moving on to update the dsv for boxes
+  }
+  for(l = 0; l < num_boxes; l++){
+    thread_index = l % number_of_threads;
+    pthread_join(threads[thread_index],NULL);
   }
 
   int k;
@@ -445,6 +452,7 @@ void *calcNewDSVs(void *thrdNum){
   long i = (long)thrdNum;
   //for(i = 0; i < num_boxes; i++){ converted for pthreads in main
      Box b = Box_Map[i];
+
      float box_new_dsv;
      float average_surrounding_temp;
 
