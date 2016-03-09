@@ -8,7 +8,7 @@ all: persistent disposable
 
 persistent:	$(OBJ)
 	$(CC) $(FLAGS) $(OBJ) -o persistent
-disposable: $(OBJ)
+disposable: $(OBJ2)
 	$(CC) $(FLAGS) $(OBJ2) -o disposable
 clean:
 	rm disposable persistent
