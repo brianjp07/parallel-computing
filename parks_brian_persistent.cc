@@ -39,9 +39,12 @@ typedef struct BoxInfo{
 map<int,Box> Box_Map;
 float epsilon;
 float affect_rate;
-pthread_t *threads;
-int number_of_threads = 200;
 
+int number_of_threads = 200;
+long *start_index;
+
+
+//int last_box_index = 0;
 //returns contact length between box b and n, see implemnation for more detail
 int get_neighbor_contact_length(Box b, Box n, int side_or_not);
 
@@ -70,8 +73,9 @@ sscanf(argv[1],"%f",&affect_rate);
 sscanf(argv[2],"%f",&epsilon);
 //printf("epsilon is %f\n",epsilon);
 sscanf(argv[3],"%d",&number_of_threads);
+start_index = (long *)malloc(sizeof(long)*number_of_threads);
 
-
+bzero(start_index,sizeof(start_index));
 char line[256];  //256 bytes should be enough for one line from input file
 /*FILE *inFilePointer;
 inFilePointer = fopen(inFileName,"r");
@@ -266,7 +270,16 @@ while(!cin.eof()){ //gets box id line
   Box_Map[box_id].dsv = dsv;
   std::cin.getline(line,256);
 }
-threads = (pthread_t *) malloc(sizeof(*threads) * number_of_threads);
+for(long i = 0; i < number_of_threads; i++){
+    start_index[i] = i * (num_boxes / number_of_threads);
+}
+/*
+  0 - 35
+  36 - 71
+  71 - 107
+
+
+*/
 struct timeval tv1,tv2;
 gettimeofday(&tv1,NULL);
 clock_t begin = clock();
@@ -274,25 +287,30 @@ chrono::system_clock::time_point t1 = chrono::system_clock::now();
 int p = 0;
 while(is_converged(epsilon,num_boxes,Box_Map) != 1){
   p++;
-  //printf("here\n");
-  int treturn;
-  int thread_index;
-  long l; //make long to avoid warnings in pthread_create
-  //int old_thread_index = -1;
-  for(l = 0; l < num_boxes; l++){
-    thread_index = l % number_of_threads;
-    /*if(old_thread_index != -1){
+  pthread_t *threads;
+  threads = (pthread_t *) malloc(sizeof(*threads) * number_of_threads);
 
-    }*/
-    treturn = pthread_create(&threads[thread_index],NULL,calcNewDSVs,(void *)l);
-    for(l = 0; l < number_of_threads; l++){
+//printf("here 2\n");
 
-      pthread_join(threads[l],NULL);
-    }
+  long box_index = 0;
 
-  //  wait for threads to complete before moving on to update the dsv for boxes
+
+  long thread_index = 0;
+
+  for(thread_index = 0; thread_index < number_of_threads; thread_index++){
+
+    pthread_create(&threads[thread_index],NULL,calcNewDSVs,(void *)thread_index);
+
   }
 
+
+
+
+thread_index = 0;
+  for(thread_index = 0; thread_index < number_of_threads; thread_index++){
+
+    pthread_join(threads[thread_index],NULL);
+  }
 
   int k;
   //update new dsv values
@@ -301,7 +319,7 @@ while(is_converged(epsilon,num_boxes,Box_Map) != 1){
     Box_Map[k].dsv = Box_Map[k].updtd_dsv;
     //printf("I: %d Box %d:  dsv %f\n",p,k,Box_Map[k].dsv);
   }
-  printf("I: %d Box %d:  dsv %f\n",p,0,Box_Map[0].dsv);
+  //printf("I: %d Box %d:  dsv %f\n",p,0,Box_Map[0].dsv);
   //printf("----------------------------------------------\n");
 } //end loop;
 chrono::system_clock::time_point t2 = chrono::system_clock::now();
@@ -450,8 +468,19 @@ int get_neighbor_contact_length(Box b, Box n, int side_or_not){
 }
 //calculates new dsv for a box[i] wh
 void *calcNewDSVs(void *thrdNum){
-  long i = (long)thrdNum;
-  //for(i = 0; i < num_boxes; i++){ converted for pthreads in main
+long thrd_id = (long)thrdNum;
+long n = num_boxes / number_of_threads;
+
+long i = thrd_id * n;
+long max;
+if(thrd_id != number_of_threads -1){
+   max = i + n;
+}else{
+  max = num_boxes;
+}
+  //printf("box_limit in calcNewDSVs is %ld \n",max);
+  //printf("last box index is in calcNewDSVs is %ld\n",i);
+  for(i = thrd_id * n; i < max; i++){
      //Box b = Box_Map[i];
      float box_new_dsv;
      float average_surrounding_temp;
@@ -519,7 +548,7 @@ void *calcNewDSVs(void *thrdNum){
        + lft_temp_sum) / (float)(perim);
      Box_Map[i].updtd_dsv = bdsv - (bdsv - average_surrounding_temp) * affect_rate;
 
-  //}
+  }
   pthread_exit(NULL);
 
 
