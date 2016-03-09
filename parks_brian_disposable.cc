@@ -7,6 +7,7 @@
 #include <map>  //needed this so did C++ instead of C
 #include <ctime>
 #include <chrono>
+#include <omp.h>
 using namespace std;
 /*
   Brian Parks
@@ -290,26 +291,97 @@ while(is_converged(epsilon,num_boxes) != 1 ){
   int treturn;
   int thread_index;
   long l;
-  pthread_t threads[number_of_threads];
-  for(l = 0; l < num_boxes;l++){
-    thread_index = l % number_of_threads;
-    treturn = pthread_create(&threads[thread_index],NULL,calcNewDSVs,(void *)l);
-    int c;
-    for(c = 0; c < number_of_threads; c++){
+  #pragma omp parallel num_threads(number_of_threads)
+  {
+    int i,nthrds,id;
+    id = omp_get_thread_num();
+    nthrds = omp_get_num_threads();
+    for(i = id; i < num_boxes; i = i + nthrds){ //converted for pthreads in main
+       //Box b = Box_Map[i];
+       float box_new_dsv;
+       float average_surrounding_temp;
+       int bw = boxes[i].w;
+       int bh = boxes[i].h;
+       float bdsv = boxes[i].dsv;
+       //top neighbors
+       float top_temp_sum = 0;
+       int j;
+       for(j = 0; j < boxes[i].n_topNghbrs; j++){
+         Box t_n_box = boxes[boxes[i].t_Nghbrs[j]];
+         float t = t_n_box.dsv;
+         int len = get_neighbor_contact_length(boxes[i],t_n_box,0);
+         top_temp_sum += (t * len);
+       }
 
-      pthread_join(threads[c],NULL);
+       //bottom neighbors
+       float btm_temp_sum = 0;
+
+       for(j = 0; j < boxes[i].n_botNghbrs; j++){
+         Box t_n_box = boxes[boxes[i].b_Nghbrs[j]];
+         float t = t_n_box.dsv;
+         int len = get_neighbor_contact_length(boxes[i],t_n_box,0);
+         btm_temp_sum += (t * len);
+       }
+
+       //Left neighbors
+       float lft_temp_sum = 0;
+
+       for(j = 0; j < boxes[i].n_lftNghbrs; j++){
+         Box t_n_box = boxes[boxes[i].l_Nghbrs[j]];
+         float t = t_n_box.dsv;
+         int len = get_neighbor_contact_length(boxes[i],t_n_box,1);
+         lft_temp_sum += (t * len);
+       }
+
+
+       //right neighbors
+       float rght_temp_sum = 0;
+
+       for(j = 0; j < boxes[i].n_rhtNghbrs; j++){
+         Box t_n_box = boxes[boxes[i].r_Nghbrs[j]];
+         float t = t_n_box.dsv;
+         int len = get_neighbor_contact_length(boxes[i],t_n_box,1);
+         rght_temp_sum += (t * len);
+       }
+       int perim = 2*(bw + bh);
+
+       //set outside boxes to current box dsv
+       if(top_temp_sum == 0){
+         top_temp_sum = bdsv * bw;
+       }
+       if(btm_temp_sum == 0){
+         btm_temp_sum = bdsv * bw;
+       }
+       if(lft_temp_sum == 0){
+         lft_temp_sum = bdsv * bh;
+       }
+       if(rght_temp_sum == 0){
+         rght_temp_sum = bdsv * bh;
+       }
+
+
+       average_surrounding_temp = (top_temp_sum + btm_temp_sum + rght_temp_sum
+         + lft_temp_sum) / (float)(perim);
+       boxes[i].updtd_dsv = bdsv - (bdsv - average_surrounding_temp) * affect_rate;
+
+    }
+    #pragma omp critical
+    {
+      //wait for threads to complete before moving on to update the dsv for boxes
+      int k;
+      //update new dsv values
+      for(k = 0; k < num_boxes; k++){
+
+        //Box_Map[k].dsv = Box_Map[k].updtd_dsv;
+        boxes[k].dsv = boxes[k].updtd_dsv;
+        //printf("I: %d Box %d:  dsv %f\n",p,k,Box_Map[k].dsv);
+      }
     }
 
-  }
-  //wait for threads to complete before moving on to update the dsv for boxes
-  int k;
-  //update new dsv values
-  for(k = 0; k < num_boxes; k++){
 
-    //Box_Map[k].dsv = Box_Map[k].updtd_dsv;
-    boxes[k].dsv = boxes[k].updtd_dsv;
-    //printf("I: %d Box %d:  dsv %f\n",p,k,Box_Map[k].dsv);
   }
+
+
   //printf("----------------------------------------------\n");
 } //end loop;
 chrono::system_clock::time_point t2 = chrono::system_clock::now();
