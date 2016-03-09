@@ -17,7 +17,7 @@ int num_boxes = 0;
 int m_width = 0;
 int m_height = 0;
 
-std::mutex mtx;
+
 /*
   Struct to hold box information
 */
@@ -272,7 +272,7 @@ gettimeofday(&tv1,NULL);
 clock_t begin = clock();
 chrono::system_clock::time_point t1 = chrono::system_clock::now();
 int p = 0;
-while(is_converged(epsilon,num_boxes,Box_Map) != 1 ){
+while(is_converged(epsilon,num_boxes,Box_Map) != 1){
   p++;
   //printf("here\n");
   int treturn;
@@ -285,14 +285,14 @@ while(is_converged(epsilon,num_boxes,Box_Map) != 1 ){
 
     }*/
     treturn = pthread_create(&threads[thread_index],NULL,calcNewDSVs,(void *)l);
+    for(l = 0; l < number_of_threads; l++){
 
+      pthread_join(threads[l],NULL);
+    }
 
   //  wait for threads to complete before moving on to update the dsv for boxes
   }
-  for(l = 0; l < num_boxes; l++){
-    thread_index = l % number_of_threads;
-    pthread_join(threads[thread_index],NULL);
-  }
+
 
   int k;
   //update new dsv values
@@ -301,6 +301,7 @@ while(is_converged(epsilon,num_boxes,Box_Map) != 1 ){
     Box_Map[k].dsv = Box_Map[k].updtd_dsv;
     //printf("I: %d Box %d:  dsv %f\n",p,k,Box_Map[k].dsv);
   }
+  printf("I: %d Box %d:  dsv %f\n",p,0,Box_Map[0].dsv);
   //printf("----------------------------------------------\n");
 } //end loop;
 chrono::system_clock::time_point t2 = chrono::system_clock::now();
@@ -451,38 +452,39 @@ int get_neighbor_contact_length(Box b, Box n, int side_or_not){
 void *calcNewDSVs(void *thrdNum){
   long i = (long)thrdNum;
   //for(i = 0; i < num_boxes; i++){ converted for pthreads in main
-     Box b = Box_Map[i];
-
+     //Box b = Box_Map[i];
      float box_new_dsv;
      float average_surrounding_temp;
-
+     int bw = Box_Map[i].w;
+     int bh = Box_Map[i].h;
+     float bdsv = Box_Map[i].dsv;
      //top neighbors
      float top_temp_sum = 0;
      int j;
-     for(j = 0; j < b.n_topNghbrs; j++){
+     for(j = 0; j < Box_Map[i].n_topNghbrs; j++){
        Box t_n_box = Box_Map[Box_Map[i].t_Nghbrs[j]];
        float t = t_n_box.dsv;
-       int len = get_neighbor_contact_length(b,t_n_box,0);
+       int len = get_neighbor_contact_length(Box_Map[i],t_n_box,0);
        top_temp_sum += (t * len);
      }
 
      //bottom neighbors
      float btm_temp_sum = 0;
 
-     for(j = 0; j < b.n_botNghbrs; j++){
+     for(j = 0; j < Box_Map[i].n_botNghbrs; j++){
        Box t_n_box = Box_Map[Box_Map[i].b_Nghbrs[j]];
        float t = t_n_box.dsv;
-       int len = get_neighbor_contact_length(b,t_n_box,0);
+       int len = get_neighbor_contact_length(Box_Map[i],t_n_box,0);
        btm_temp_sum += (t * len);
      }
 
      //Left neighbors
      float lft_temp_sum = 0;
 
-     for(j = 0; j < b.n_lftNghbrs; j++){
+     for(j = 0; j < Box_Map[i].n_lftNghbrs; j++){
        Box t_n_box = Box_Map[Box_Map[i].l_Nghbrs[j]];
        float t = t_n_box.dsv;
-       int len = get_neighbor_contact_length(b,t_n_box,1);
+       int len = get_neighbor_contact_length(Box_Map[i],t_n_box,1);
        lft_temp_sum += (t * len);
      }
 
@@ -490,36 +492,37 @@ void *calcNewDSVs(void *thrdNum){
      //right neighbors
      float rght_temp_sum = 0;
 
-     for(j = 0; j < b.n_rhtNghbrs; j++){
+     for(j = 0; j < Box_Map[i].n_rhtNghbrs; j++){
        Box t_n_box = Box_Map[Box_Map[i].r_Nghbrs[j]];
        float t = t_n_box.dsv;
-       int len = get_neighbor_contact_length(b,t_n_box,1);
+       int len = get_neighbor_contact_length(Box_Map[i],t_n_box,1);
        rght_temp_sum += (t * len);
      }
-     int perim = 2*(b.w + b.h);
+     int perim = 2*(bw + bh);
 
      //set outside boxes to current box dsv
      if(top_temp_sum == 0){
-       top_temp_sum = b.dsv * b.w;
+       top_temp_sum = bdsv * bw;
      }
      if(btm_temp_sum == 0){
-       btm_temp_sum = b.dsv * b.w;
+       btm_temp_sum = bdsv * bw;
      }
      if(lft_temp_sum == 0){
-       lft_temp_sum = b.dsv * b.h;
+       lft_temp_sum = bdsv * bh;
      }
      if(rght_temp_sum == 0){
-       rght_temp_sum = b.dsv * b.h;
+       rght_temp_sum = bdsv * bh;
      }
 
 
      average_surrounding_temp = (top_temp_sum + btm_temp_sum + rght_temp_sum
        + lft_temp_sum) / (float)(perim);
-     Box_Map[i].updtd_dsv = b.dsv - (b.dsv - average_surrounding_temp) * affect_rate;
+     Box_Map[i].updtd_dsv = bdsv - (bdsv - average_surrounding_temp) * affect_rate;
 
   //}
   pthread_exit(NULL);
-  return NULL;
+
+
 }
 /**************   TESTING SECTION FOR REFERENCE *****************/
 /*
