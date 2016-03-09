@@ -7,6 +7,7 @@
 #include <map>  //needed this so did C++ instead of C
 #include <ctime>
 #include <chrono>
+#include <pthread.h>
 using namespace std;
 /*
   Brian Parks
@@ -43,7 +44,9 @@ float affect_rate;
 int number_of_threads = 200;
 long *start_index;
 
-
+pthread_t *threads;
+pthread_barrier_t   barrier;
+pthread_mutex_t mutex1 = PTHREAD_MUTEX_INITIALIZER;
 //int last_box_index = 0;
 //returns contact length between box b and n, see implemnation for more detail
 int get_neighbor_contact_length(Box b, Box n, int side_or_not);
@@ -285,10 +288,14 @@ gettimeofday(&tv1,NULL);
 clock_t begin = clock();
 chrono::system_clock::time_point t1 = chrono::system_clock::now();
 int p = 0;
+
+threads = (pthread_t *) malloc(sizeof(*threads) * number_of_threads);
+
+pthread_barrier_init (&barrier, NULL, number_of_threads);
+
 while(is_converged(epsilon,num_boxes,Box_Map) != 1){
   p++;
-  pthread_t *threads;
-  threads = (pthread_t *) malloc(sizeof(*threads) * number_of_threads);
+
 
 //printf("here 2\n");
 
@@ -306,12 +313,13 @@ while(is_converged(epsilon,num_boxes,Box_Map) != 1){
 
 
 
-thread_index = 0;
+  thread_index = 0;
   for(thread_index = 0; thread_index < number_of_threads; thread_index++){
 
     pthread_join(threads[thread_index],NULL);
   }
-
+  pthread_barrier_wait (&barrier);
+  pthread_mutex_lock( &mutex1 );
   int k;
   //update new dsv values
   for(k = 0; k < num_boxes; k++){
@@ -319,6 +327,7 @@ thread_index = 0;
     Box_Map[k].dsv = Box_Map[k].updtd_dsv;
     //printf("I: %d Box %d:  dsv %f\n",p,k,Box_Map[k].dsv);
   }
+  pthread_mutex_unlock( &mutex1 );
   //printf("I: %d Box %d:  dsv %f\n",p,0,Box_Map[0].dsv);
   //printf("----------------------------------------------\n");
 } //end loop;
@@ -347,6 +356,7 @@ printf("Max DSV     : %f\n",max_dsv);
 printf("Min DSV     : %f\n",min_dsv);
 printf("Affect rate : %f\n",affect_rate);
 printf("Epsilon     : %f\n",epsilon);
+printf("Thread Count: %d\n",number_of_threads);
 printf("Elapsed time (clock) in seconds  : %f\n",clck_secs);
 printf ("Elapsed time (time) in seconds   : %f \n",
          (double) (tv2.tv_usec - tv1.tv_usec) / 1000000 +
@@ -549,7 +559,7 @@ if(thrd_id != number_of_threads -1){
      Box_Map[i].updtd_dsv = bdsv - (bdsv - average_surrounding_temp) * affect_rate;
 
   }
-  pthread_exit(NULL);
+
 
 
 }

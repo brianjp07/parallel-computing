@@ -347,6 +347,7 @@ printf("Max DSV     : %f\n",max_dsv);
 printf("Min DSV     : %f\n",min_dsv);
 printf("Affect rate : %f\n",affect_rate);
 printf("Epsilon     : %f\n",epsilon);
+printf("Thread Count: %d\n",number_of_threads);
 printf("Elapsed time (clock) in seconds  : %f\n",clck_secs);
 printf ("Elapsed time (time) in seconds   : %f \n",
          (double) (tv2.tv_usec - tv1.tv_usec) / 1000000 +
