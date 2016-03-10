@@ -551,7 +551,7 @@ if(thrd_id != number_of_threads -1){
 
 void *convergenceLoop(void *thrdNum){
 
-  printf("thread num is %ld\n",(long)thrdNum);
+  //printf("thread num is %ld\n",(long)thrdNum);
   while(is_converged(epsilon,num_boxes,Box_Map) != 1){
 
     calcNewDSVs(thrdNum);
@@ -574,7 +574,7 @@ void *convergenceLoop(void *thrdNum){
 
     //printf("yes\n");
 
-    
+
     pthread_mutex_lock( &mutex1 );
     if((long)thrdNum == 0){
     int k;
@@ -587,7 +587,7 @@ void *convergenceLoop(void *thrdNum){
     }
 	}
     pthread_mutex_unlock( &mutex1 );
-    pthread_barrier_wait (&barrier); 
+    pthread_barrier_wait (&barrier);
   } //end loop;
   int thread_index;
   /*for(thread_index = 0; thread_index < number_of_threads; thread_index++){
