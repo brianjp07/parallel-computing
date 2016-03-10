@@ -550,7 +550,7 @@ if(thrd_id != number_of_threads -1){
      Box_Map[i].updtd_dsv = bdsv - (bdsv - average_surrounding_temp) * affect_rate;
 
   }
-  pthread_exit(NULL);
+ pthread_exit(NULL);
 
 
 }

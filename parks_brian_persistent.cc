@@ -44,6 +44,7 @@ int number_of_threads = 200;
 long *start_index;
 pthread_t *threads;
 pthread_mutex_t mutex1 = PTHREAD_MUTEX_INITIALIZER;
+pthread_barrier_t   barrier;
 int p = 0;
 //int last_box_index = 0;
 //returns contact length between box b and n, see implemnation for more detail
@@ -53,7 +54,7 @@ int get_neighbor_contact_length(Box b, Box n, int side_or_not);
 int is_converged(float epsln,int num_boxes, map<int,Box> Box_Map);
 
 //move logic to function in order for pthread to call this section of code
-void *calcNewDSVs();
+void *calcNewDSVs(void *thrdNum);
 
 void *convergenceLoop(void *thrdNum);
 
@@ -290,7 +291,7 @@ chrono::system_clock::time_point t1 = chrono::system_clock::now();
 
 
 threads = (pthread_t *) malloc(sizeof(*threads) * number_of_threads);
-int thread_index;
+long thread_index;
 for(thread_index = 0; thread_index < number_of_threads; thread_index++){
 
   pthread_create(&threads[thread_index],NULL,convergenceLoop,(void *)thread_index);
@@ -298,8 +299,14 @@ for(thread_index = 0; thread_index < number_of_threads; thread_index++){
 for(thread_index = 0; thread_index < number_of_threads; thread_index++){
   pthread_join(threads[thread_index],NULL);
 }
+printf("here bbbbbbbbb\n");
 for(thread_index = 0; thread_index < number_of_threads; thread_index++){
-  pthread_cancel(threads[thread_index]);
+  /*try{
+    pthread_cancel(threads[thread_index]);
+  }catch (std::exception& e){
+
+  }*/
+
 }
 
 chrono::system_clock::time_point t2 = chrono::system_clock::now();
@@ -449,8 +456,8 @@ int get_neighbor_contact_length(Box b, Box n, int side_or_not){
  return len;
 }
 //calculates new dsv for a box[i] wh
-void *calcNewDSVs(){
-  /*
+void *calcNewDSVs(void *thrdNum){
+
 long thrd_id = (long)thrdNum;
 long n = num_boxes / number_of_threads;
 
@@ -460,11 +467,11 @@ if(thrd_id != number_of_threads -1){
    max = i + n;
 }else{
   max = num_boxes;
-}*/
+}
   //printf("box_limit in calcNewDSVs is %ld \n",max);
   //printf("last box index is in calcNewDSVs is %ld\n",i);
-  int i;
-  for(i = 0; i < num_boxes; i++){
+
+  for(i = thrd_id * n; i < max; i++){
      //Box b = Box_Map[i];
      float box_new_dsv;
      float average_surrounding_temp;
@@ -543,10 +550,10 @@ if(thrd_id != number_of_threads -1){
 
 void *convergenceLoop(void *thrdNum){
 
-  //printf("thread num is %ld\n",x);
+  printf("thread num is %ld\n",(long)thrdNum);
   while(is_converged(epsilon,num_boxes,Box_Map) != 1){
 
-    calcNewDSVs();
+    calcNewDSVs(thrdNum);
 
     //barrier
     int thread_index;
@@ -554,21 +561,38 @@ void *convergenceLoop(void *thrdNum){
 
       pthread_join(threads[thread_index],NULL);
     }
-    pthread_mutex_lock( &mutex1 );
-    if((long)thrdNum == number_of_threads-1){p++;}
+
+    /*if((long)thrdNum == number_of_threads-1){p++;}
     //iteration counter
+    long thrd_id = (long)thrdNum;
+    long n = num_boxes / number_of_threads;
 
-    int k;
-    for(k = 0; k < num_boxes; k++){
-      Box_Map[k].dsv = Box_Map[k].updtd_dsv;
-
-      //printf("I: %ld Box %d:  dsv %f\n",(long)thrdNum,k,Box_Map[k].dsv);
-    }
-    //printf("yes\n");
-    pthread_mutex_unlock( &mutex1 );
-    /*for(thread_index = 0; thread_index < number_of_threads; thread_index++){
-      pthread_join(threads[thread_index],NULL);
+    long i = thrd_id * n;
+    long max;
+    if(thrd_id != number_of_threads -1){
+       max = i + n;
+    }else{
+      max = num_boxes;
     }*/
+
+    //printf("yes\n");
+
+    for(thread_index = 0; thread_index < number_of_threads; thread_index++){
+      pthread_join(threads[thread_index],NULL);
+    }
+
+    for(thread_index = 0; thread_index < number_of_threads; thread_index++){
+      pthread_join(threads[thread_index],NULL);
+    }
+      pthread_mutex_lock( &mutex1 );
+    int k;
+    //update new dsv values
+    for(k = 0; k < num_boxes; k++){
+
+      Box_Map[k].dsv = Box_Map[k].updtd_dsv;
+      printf("I: %ld Box %d:  dsv %f\n",(long)thrdNum,k,Box_Map[k].dsv);
+    }
+    pthread_mutex_unlock( &mutex1 );
   } //end loop;
   int thread_index;
   /*for(thread_index = 0; thread_index < number_of_threads; thread_index++){
