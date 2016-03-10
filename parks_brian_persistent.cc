@@ -42,6 +42,8 @@ float affect_rate;
 
 int number_of_threads = 200;
 long *start_index;
+float minDsv;
+float maxDsv;
 pthread_t *threads;
 pthread_mutex_t mutex1 = PTHREAD_MUTEX_INITIALIZER;
 pthread_barrier_t   barrier;
@@ -57,7 +59,7 @@ int is_converged(float epsln,int num_boxes, map<int,Box> Box_Map);
 void *calcNewDSVs(void *thrdNum);
 
 void *convergenceLoop(void *thrdNum);
-
+void updateMaxMin();
 int main(int argc, char* argv[]){
 
 if(argc < 3){
@@ -284,6 +286,7 @@ for(long i = 0; i < number_of_threads; i++){
 
 
 */
+updateMaxMin();
 struct timeval tv1,tv2;
 gettimeofday(&tv1,NULL);
 clock_t begin = clock();
@@ -538,9 +541,9 @@ if(thrd_id != number_of_threads -1){
 
      average_surrounding_temp = (top_temp_sum + btm_temp_sum + rght_temp_sum
        + lft_temp_sum) / (float)(perim);
-     pthread_mutex_lock( &mutex1 );
+    // pthread_mutex_lock( &mutex1 );
      Box_Map[i].updtd_dsv = bdsv - (bdsv - average_surrounding_temp) * affect_rate;
-     pthread_mutex_unlock( &mutex1 );
+   //  pthread_mutex_unlock( &mutex1 );
   }
   return NULL;
 
@@ -551,8 +554,16 @@ if(thrd_id != number_of_threads -1){
 
 void *convergenceLoop(void *thrdNum){
 
-  //printf("thread num is %ld\n",(long)thrdNum);
-  while(is_converged(epsilon,num_boxes,Box_Map) != 1){
+  /*printf("thread num is %ld\n",(long)thrdNum);
+  printf("epsilon %f\n",epsilon);
+
+  //updateMaxMin();
+  printf("maxDsv %f\n",maxDsv);
+  printf("minDsv %f\n",minDsv);
+  printf("(maxDsv - minDsv) <= (epsilon*maxDsv) %d\n",(maxDsv - minDsv) <= (epsilon*maxDsv));
+  printf("maxDsv - minDsv is %f \n",maxDsv - minDsv);
+  printf("(epsilon*maxDsv) %f \n",(epsilon*maxDsv));*/
+  while((maxDsv - minDsv) > (epsilon*maxDsv)){
 
     calcNewDSVs(thrdNum);
 
@@ -575,23 +586,66 @@ void *convergenceLoop(void *thrdNum){
     //printf("yes\n");
 
 
-    pthread_mutex_lock( &mutex1 );
+    //pthread_mutex_lock( &mutex1 );
     if((long)thrdNum == 0){
-    int k;
-	p++;
+      int k;
+	     p++;
+
     //update new dsv values
     for(k = 0; k < num_boxes; k++){
 
       Box_Map[k].dsv = Box_Map[k].updtd_dsv;
       //printf("I: %ld Box %d:  dsv %f\n",(long)thrdNum,k,Box_Map[k].dsv);
     }
-	}
-    pthread_mutex_unlock( &mutex1 );
+	 }
+
+    //pthread_mutex_unlock( &mutex1 );
     pthread_barrier_wait (&barrier);
+    if( (long)thrdNum == 0) {updateMaxMin();}
+pthread_barrier_wait (&barrier);
   } //end loop;
   int thread_index;
   /*for(thread_index = 0; thread_index < number_of_threads; thread_index++){
     pthread_join(threads[thread_index],NULL);
   }*/
   return NULL;
+}
+
+void updateMaxMin(){
+
+/*
+loat max_dsv = Box_Map[0].dsv;
+  float min_dsv = Box_Map[0].dsv;
+  int i;
+  for(i = 0; i < n_boxes; i++){
+
+     Box b = Box_Map[i];
+
+     if(b.dsv < min_dsv){
+       min_dsv = b.dsv;
+     }
+     if(b.dsv > max_dsv){
+       max_dsv = b.dsv;
+     }
+  }
+
+  float diff = (max_dsv - min_dsv);
+
+  int ret_val = 0;
+*/
+  //printf("min and max updated\n");
+  maxDsv = Box_Map[0].dsv;
+  minDsv = Box_Map[0].dsv;
+  int i;
+  for(i = 0; i < num_boxes; i++){
+
+     Box b = Box_Map[i];
+
+     if(b.dsv < minDsv){
+       minDsv = b.dsv;
+     }
+     if(b.dsv > maxDsv){
+       maxDsv = b.dsv;
+     }
+  }
 }
