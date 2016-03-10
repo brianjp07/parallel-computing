@@ -291,6 +291,7 @@ chrono::system_clock::time_point t1 = chrono::system_clock::now();
 
 
 threads = (pthread_t *) malloc(sizeof(*threads) * number_of_threads);
+pthread_barrier_init (&barrier, NULL, number_of_threads);
 long thread_index;
 for(thread_index = 0; thread_index < number_of_threads; thread_index++){
 
@@ -299,7 +300,7 @@ for(thread_index = 0; thread_index < number_of_threads; thread_index++){
 for(thread_index = 0; thread_index < number_of_threads; thread_index++){
   pthread_join(threads[thread_index],NULL);
 }
-printf("here bbbbbbbbb\n");
+//printf("here bbbbbbbbb\n");
 for(thread_index = 0; thread_index < number_of_threads; thread_index++){
   /*try{
     pthread_cancel(threads[thread_index]);
@@ -556,11 +557,7 @@ void *convergenceLoop(void *thrdNum){
     calcNewDSVs(thrdNum);
 
     //barrier
-    int thread_index;
-    for(thread_index = 0; thread_index < number_of_threads; thread_index++){
-
-      pthread_join(threads[thread_index],NULL);
-    }
+    pthread_barrier_wait (&barrier);
 
     /*if((long)thrdNum == number_of_threads-1){p++;}
     //iteration counter
@@ -577,22 +574,20 @@ void *convergenceLoop(void *thrdNum){
 
     //printf("yes\n");
 
-    for(thread_index = 0; thread_index < number_of_threads; thread_index++){
-      pthread_join(threads[thread_index],NULL);
-    }
-
-    for(thread_index = 0; thread_index < number_of_threads; thread_index++){
-      pthread_join(threads[thread_index],NULL);
-    }
-      pthread_mutex_lock( &mutex1 );
+    
+    pthread_mutex_lock( &mutex1 );
+    if((long)thrdNum == 0){
     int k;
+	p++;
     //update new dsv values
     for(k = 0; k < num_boxes; k++){
 
       Box_Map[k].dsv = Box_Map[k].updtd_dsv;
-      printf("I: %ld Box %d:  dsv %f\n",(long)thrdNum,k,Box_Map[k].dsv);
+      //printf("I: %ld Box %d:  dsv %f\n",(long)thrdNum,k,Box_Map[k].dsv);
     }
+	}
     pthread_mutex_unlock( &mutex1 );
+    pthread_barrier_wait (&barrier); 
   } //end loop;
   int thread_index;
   /*for(thread_index = 0; thread_index < number_of_threads; thread_index++){
