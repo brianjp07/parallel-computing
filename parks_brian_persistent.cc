@@ -7,7 +7,6 @@
 #include <map>  //needed this so did C++ instead of C
 #include <ctime>
 #include <chrono>
-#include <pthread.h>
 using namespace std;
 /*
   Brian Parks
@@ -43,10 +42,9 @@ float affect_rate;
 
 int number_of_threads = 200;
 long *start_index;
-
 pthread_t *threads;
-pthread_barrier_t   barrier;
 pthread_mutex_t mutex1 = PTHREAD_MUTEX_INITIALIZER;
+int p = 0;
 //int last_box_index = 0;
 //returns contact length between box b and n, see implemnation for more detail
 int get_neighbor_contact_length(Box b, Box n, int side_or_not);
@@ -55,7 +53,9 @@ int get_neighbor_contact_length(Box b, Box n, int side_or_not);
 int is_converged(float epsln,int num_boxes, map<int,Box> Box_Map);
 
 //move logic to function in order for pthread to call this section of code
-void *calcNewDSVs(void *thrdNum);
+void *calcNewDSVs();
+
+void *convergenceLoop(void *thrdNum);
 
 int main(int argc, char* argv[]){
 
@@ -287,50 +287,21 @@ struct timeval tv1,tv2;
 gettimeofday(&tv1,NULL);
 clock_t begin = clock();
 chrono::system_clock::time_point t1 = chrono::system_clock::now();
-int p = 0;
+
 
 threads = (pthread_t *) malloc(sizeof(*threads) * number_of_threads);
+int thread_index;
+for(thread_index = 0; thread_index < number_of_threads; thread_index++){
 
-pthread_barrier_init (&barrier, NULL, number_of_threads);
+  pthread_create(&threads[thread_index],NULL,convergenceLoop,(void *)thread_index);
+}
+for(thread_index = 0; thread_index < number_of_threads; thread_index++){
+  pthread_join(threads[thread_index],NULL);
+}
+for(thread_index = 0; thread_index < number_of_threads; thread_index++){
+  pthread_cancel(threads[thread_index]);
+}
 
-while(is_converged(epsilon,num_boxes,Box_Map) != 1){
-  p++;
-
-
-//printf("here 2\n");
-
-  long box_index = 0;
-
-
-  long thread_index = 0;
-
-  for(thread_index = 0; thread_index < number_of_threads; thread_index++){
-
-    pthread_create(&threads[thread_index],NULL,calcNewDSVs,(void *)thread_index);
-
-  }
-
-
-
-
-  thread_index = 0;
-  for(thread_index = 0; thread_index < number_of_threads; thread_index++){
-
-    pthread_join(threads[thread_index],NULL);
-  }
-  pthread_barrier_wait (&barrier);
-  pthread_mutex_lock( &mutex1 );
-  int k;
-  //update new dsv values
-  for(k = 0; k < num_boxes; k++){
-
-    Box_Map[k].dsv = Box_Map[k].updtd_dsv;
-    //printf("I: %d Box %d:  dsv %f\n",p,k,Box_Map[k].dsv);
-  }
-  pthread_mutex_unlock( &mutex1 );
-  //printf("I: %d Box %d:  dsv %f\n",p,0,Box_Map[0].dsv);
-  //printf("----------------------------------------------\n");
-} //end loop;
 chrono::system_clock::time_point t2 = chrono::system_clock::now();
 chrono::duration<double> time_span = chrono::duration_cast< chrono::duration<double> > (t2 - t1);
 gettimeofday(&tv2,NULL);
@@ -413,6 +384,7 @@ int is_converged(float epsln, int n_boxes, map<int,Box> Box_Map){
   int ret_val = 0;
 
 
+
   if(diff <= epsln*max_dsv ){
     ret_val = 1;
   }
@@ -477,7 +449,8 @@ int get_neighbor_contact_length(Box b, Box n, int side_or_not){
  return len;
 }
 //calculates new dsv for a box[i] wh
-void *calcNewDSVs(void *thrdNum){
+void *calcNewDSVs(){
+  /*
 long thrd_id = (long)thrdNum;
 long n = num_boxes / number_of_threads;
 
@@ -487,10 +460,11 @@ if(thrd_id != number_of_threads -1){
    max = i + n;
 }else{
   max = num_boxes;
-}
+}*/
   //printf("box_limit in calcNewDSVs is %ld \n",max);
   //printf("last box index is in calcNewDSVs is %ld\n",i);
-  for(i = thrd_id * n; i < max; i++){
+  int i;
+  for(i = 0; i < num_boxes; i++){
      //Box b = Box_Map[i];
      float box_new_dsv;
      float average_surrounding_temp;
@@ -556,129 +530,49 @@ if(thrd_id != number_of_threads -1){
 
      average_surrounding_temp = (top_temp_sum + btm_temp_sum + rght_temp_sum
        + lft_temp_sum) / (float)(perim);
+     pthread_mutex_lock( &mutex1 );
      Box_Map[i].updtd_dsv = bdsv - (bdsv - average_surrounding_temp) * affect_rate;
-
+     pthread_mutex_unlock( &mutex1 );
   }
-
+  return NULL;
 
 
 }
-/**************   TESTING SECTION FOR REFERENCE *****************/
-/*
 
-printf("\n\n");
-printf("###########################\n");
-printf("##    Struct Testing     ##\n");
-printf("###########################\n");
-int i;
 
-for(i = 0; i < num_boxes; i++){
-  printf("Box ID: %d\n",i);
-  printf("Box xPos : %d\n",Box_Map[i].xPos);
-  printf("Box yPos : %d\n",Box_Map[i].yPos);
-  printf("Box h    : %d\n",Box_Map[i].h);
-  printf("Box w    : %d\n",Box_Map[i].w);
 
-  //top test
-  printf("Box T_N  : %d\n",Box_Map[i].n_topNghbrs);
-  printf("Box T_N_L: ");
-  int j;
-  for(j = 0; j < Box_Map[i].n_topNghbrs; j++){
-    printf(" %d",Box_Map[i].t_Nghbrs[j]);
-  }
-  printf("\n");
+void *convergenceLoop(void *thrdNum){
 
-  //bottom test
-  printf("Box B_N  : %d\n",Box_Map[i].n_botNghbrs);
-  printf("Box B_N_L: ");
+  //printf("thread num is %ld\n",x);
+  while(is_converged(epsilon,num_boxes,Box_Map) != 1){
 
-  for(j = 0; j < Box_Map[i].n_botNghbrs; j++){
-    printf(" %d",Box_Map[i].b_Nghbrs[j]);
-  }
-  printf("\n");
+    calcNewDSVs();
 
-  //left test
-  printf("Box L_N  : %d\n",Box_Map[i].n_lftNghbrs);
-  printf("Box L_N_L: ");
+    //barrier
+    int thread_index;
+    for(thread_index = 0; thread_index < number_of_threads; thread_index++){
 
-  for(j = 0; j < Box_Map[i].n_lftNghbrs; j++){
-    printf(" %d",Box_Map[i].l_Nghbrs[j]);
-  }
-  printf("\n");
+      pthread_join(threads[thread_index],NULL);
+    }
+    pthread_mutex_lock( &mutex1 );
+    if((long)thrdNum == number_of_threads-1){p++;}
+    //iteration counter
 
-  //right test
-  printf("Box R_N  : %d\n",Box_Map[i].n_rhtNghbrs);
-  printf("Box R_N_L: ");
+    int k;
+    for(k = 0; k < num_boxes; k++){
+      Box_Map[k].dsv = Box_Map[k].updtd_dsv;
 
-  for(j = 0; j < Box_Map[i].n_rhtNghbrs; j++){
-    printf(" %d",Box_Map[i].r_Nghbrs[j]);
-  }
-  printf("\n");
-  printf("Box DSV  : %f\n",Box_Map[i].dsv);
-  printf("##########################\n");
-} //end print t */
-/*
-int test = get_neighbor_contact_length(Box_Map[38],Box_Map[22],0);
-printf("length was %d\n",test);
-test = get_neighbor_contact_length(Box_Map[36],Box_Map[20],0);
-printf("36 20 length was %d\n",test);
-test = get_neighbor_contact_length(Box_Map[36],Box_Map[35],1);
-printf("36 35 length was %d\n",test);
-test = get_neighbor_contact_length(Box_Map[36],Box_Map[37],1);
-printf("36 37 length was %d\n",test);*/
-//printf("entering is converged loop;\n");
-
-/*
-//bottom neighbor tests
-int test = get_neighbor_contact_length(Box_Map[1],Box_Map[5],0);
-printf("box 1 neighbor 5 length was %d\n",test);
- test = get_neighbor_contact_length(Box_Map[1],Box_Map[6],0);
-printf("box 1 neighbor 6 length was %d\n",test);
- test = get_neighbor_contact_length(Box_Map[1],Box_Map[7],0);
-printf("box 1 neighbor 7 length was %d\n",test);
- test = get_neighbor_contact_length(Box_Map[1],Box_Map[8],0);
-printf("box 1 neighbor 8 length was %d\n",test);
-//top nieghtbor test
-test = get_neighbor_contact_length(Box_Map[5],Box_Map[1],0);
-printf("box 5 neighbor 1 length was %d\n",test);
- test = get_neighbor_contact_length(Box_Map[6],Box_Map[1],0);
-printf("box 6 neighbor 1 length was %d\n",test);
-//printf("Box 7 x: %d y: %d nT: %d neig: %d\n",Box_Map[7].xPos,Box_Map[7].yPos, Box_Map[7].n_topNghbrs, Box_Map[7].t_Nghbrs[0]);
- test = get_neighbor_contact_length(Box_Map[7],Box_Map[1],0);
-printf("box 7 neighbor 1 length was %d\n",test);
- test = get_neighbor_contact_length(Box_Map[8],Box_Map[1],0);
-printf("box 8 neighbor 1 length was %d\n",test);
-//left nieghbor test
-test = get_neighbor_contact_length(Box_Map[8],Box_Map[7],1);
-printf("box 8 neighbor 7 length was %d\n",test);
- test = get_neighbor_contact_length(Box_Map[8],Box_Map[9],1);
-printf("box 8 neighbor 9 length was %d\n",test);
- test = get_neighbor_contact_length(Box_Map[8],Box_Map[10],1);
-printf("box 8 neighbor 10 length was %d\n",test);
- test = get_neighbor_contact_length(Box_Map[8],Box_Map[11],1);
-printf("box 8 neighbor 11 length was %d\n",test);
-//right neighbor tests
-test = get_neighbor_contact_length(Box_Map[6],Box_Map[7],1);
-printf("box 6 neighbor 7 length was %d\n",test);
- test = get_neighbor_contact_length(Box_Map[6],Box_Map[9],1);
-printf("box 6 neighbor 9 length was %d\n",test);
- test = get_neighbor_contact_length(Box_Map[6],Box_Map[10],1);
-printf("box 6 neighbor 10 length was %d\n",test);
- test = get_neighbor_contact_length(Box_Map[6],Box_Map[11],1);
-printf("box 6 neighbor 11 length was %d\n",test);
-
-test = get_neighbor_contact_length(Box_Map[7],Box_Map[9],0);
-printf("box 7 neighbor 9 length was %d\n",test);
-
-test = get_neighbor_contact_length(Box_Map[12],Box_Map[5],0);
-printf("box 12 neighbor 5 length was %d\n",test);
- test = get_neighbor_contact_length(Box_Map[5],Box_Map[12],0);
-printf("box 5 neighbor 12 length was %d\n",test);
- test = get_neighbor_contact_length(Box_Map[12],Box_Map[6],0);
-printf("box 12 neighbor 6 length was %d\n",test);
- test = get_neighbor_contact_length(Box_Map[6],Box_Map[12],0);
-printf("box 6 neighbor 12 length was %d\n",test);
-test = get_neighbor_contact_length(Box_Map[13],Box_Map[14],1);
-printf("box 13 neighbor 14 length was %d\n",test);
-test = get_neighbor_contact_length(Box_Map[14],Box_Map[13],1);
-printf("box 14 neighbor 13 length was %d\n",test);*/
+      //printf("I: %ld Box %d:  dsv %f\n",(long)thrdNum,k,Box_Map[k].dsv);
+    }
+    //printf("yes\n");
+    pthread_mutex_unlock( &mutex1 );
+    /*for(thread_index = 0; thread_index < number_of_threads; thread_index++){
+      pthread_join(threads[thread_index],NULL);
+    }*/
+  } //end loop;
+  int thread_index;
+  /*for(thread_index = 0; thread_index < number_of_threads; thread_index++){
+    pthread_join(threads[thread_index],NULL);
+  }*/
+  return NULL;
+}
