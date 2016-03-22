@@ -1,11 +1,11 @@
 #Makefile for Lab1.cc
 
 CC = g++
-OBJ2 = parks_brian_disposable.cc
+OBJ2 = lab3.cc
 FLAGS = -O3 -std=c++0x -fopenmp
-all: persistent disposable
+all: lab3
 
-disposable: $(OBJ2)
-	$(CC) $(FLAGS) $(OBJ2) -o disposable
+lab3: $(OBJ2)
+	$(CC) $(FLAGS) $(OBJ2) -o lab3
 clean:
-	rm disposable persistent
+	rm lab3
