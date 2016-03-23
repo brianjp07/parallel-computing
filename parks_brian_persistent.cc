@@ -4,9 +4,10 @@
 #include <iostream>
 #include <stdlib.h>
 #include <sys/time.h>
-#include <map>  //needed this so did C++ instead of C
+#include <map>  
 #include <ctime>
 #include <chrono>
+#include <omp.h>
 using namespace std;
 /*
   Brian Parks
@@ -39,9 +40,16 @@ typedef struct BoxInfo{
 map<int,Box> Box_Map;
 float epsilon;
 float affect_rate;
-pthread_t *threads;
-int number_of_threads = 200;
 
+int number_of_threads = 200;
+long *start_index;
+float minDsv;
+float maxDsv;
+pthread_t *threads;
+pthread_mutex_t mutex1 = PTHREAD_MUTEX_INITIALIZER;
+pthread_barrier_t   barrier;
+int p = 0;
+//int last_box_index = 0;
 //returns contact length between box b and n, see implemnation for more detail
 int get_neighbor_contact_length(Box b, Box n, int side_or_not);
 
@@ -49,8 +57,10 @@ int get_neighbor_contact_length(Box b, Box n, int side_or_not);
 int is_converged(float epsln,int num_boxes, map<int,Box> Box_Map);
 
 //move logic to function in order for pthread to call this section of code
-void *calcNewDSVs(void *thrdNum);
+void *calcNewDSVs(long thrdNum);
 
+void *convergenceLoop(void *thrdNum);
+void updateMaxMin();
 int main(int argc, char* argv[]){
 
 if(argc < 3){
@@ -70,18 +80,17 @@ sscanf(argv[1],"%f",&affect_rate);
 sscanf(argv[2],"%f",&epsilon);
 //printf("epsilon is %f\n",epsilon);
 sscanf(argv[3],"%d",&number_of_threads);
+start_index = (long *)malloc(sizeof(long)*number_of_threads);
 
-
+bzero(start_index,sizeof(start_index));
 char line[256];  //256 bytes should be enough for one line from input file
 /*FILE *inFilePointer;
 inFilePointer = fopen(inFileName,"r");
-
 if(inFilePointer == NULL){
     perror("error opening data input file\n");
     exit(2);
 }*/
 /*
-
 printf("line is %s\n",line);
 std::cin.getline(line,256);
 printf("line is %s\n",line);
@@ -266,44 +275,100 @@ while(!cin.eof()){ //gets box id line
   Box_Map[box_id].dsv = dsv;
   std::cin.getline(line,256);
 }
-threads = (pthread_t *) malloc(sizeof(*threads) * number_of_threads);
+for(long i = 0; i < number_of_threads; i++){
+    start_index[i] = i * (num_boxes / number_of_threads);
+}
+/*
+  0 - 35
+  36 - 71
+  71 - 107
+*/
+updateMaxMin();
 struct timeval tv1,tv2;
 gettimeofday(&tv1,NULL);
 clock_t begin = clock();
 chrono::system_clock::time_point t1 = chrono::system_clock::now();
-int p = 0;
-while(is_converged(epsilon,num_boxes,Box_Map) != 1){
-  p++;
-  //printf("here\n");
-  int treturn;
-  int thread_index;
-  long l; //make long to avoid warnings in pthread_create
-  //int old_thread_index = -1;
-  for(l = 0; l < num_boxes; l++){
-    thread_index = l % number_of_threads;
-    /*if(old_thread_index != -1){
 
+/*
+threads = (pthread_t *) malloc(sizeof(*threads) * number_of_threads);
+pthread_barrier_init (&barrier, NULL, number_of_threads);
+long thread_index;
+for(thread_index = 0; thread_index < number_of_threads; thread_index++){
+
+  pthread_create(&threads[thread_index],NULL,convergenceLoop,(void *)thread_index);
+}
+for(thread_index = 0; thread_index < number_of_threads; thread_index++){
+  pthread_join(threads[thread_index],NULL);
+}
+//printf("here bbbbbbbbb\n");
+for(thread_index = 0; thread_index < number_of_threads; thread_index++){
+  try{
+    pthread_cancel(threads[thread_index]);
+  }catch (std::exception& e){
+  }
+
+}*/
+updateMaxMin();
+omp_set_num_threads(number_of_threads);
+long tn;
+#pragma omp parallel private(number_of_threads,tn)
+{
+
+ while((maxDsv - minDsv) > (epsilon*maxDsv)){
+    tn = omp_get_thread_num();
+    calcNewDSVs(tn);
+	//printf("tn incl is %ld\n",tn);
+    //barrier
+    //pthread_barrier_wait (&barrier);
+	#pragma omp barrier
+    /*if((long)thrdNum == number_of_threads-1){p++;}
+    //iteration counter
+    long thrd_id = (long)thrdNum;
+    long n = num_boxes / number_of_threads;
+    long i = thrd_id * n;
+    long max;
+    if(thrd_id != number_of_threads -1){
+       max = i + n;
+    }else{
+      max = num_boxes;
     }*/
-    treturn = pthread_create(&threads[thread_index],NULL,calcNewDSVs,(void *)l);
-    for(l = 0; l < number_of_threads; l++){
 
-      pthread_join(threads[l],NULL);
-    }
-
-  //  wait for threads to complete before moving on to update the dsv for boxes
-  }
+    //printf("yes\n");
 
 
-  int k;
-  //update new dsv values
-  for(k = 0; k < num_boxes; k++){
+    //pthread_mutex_lock( &mutex1 );
+	
+    //if((long)thrdNum == 0){
+	#pragma omp master
+	{
+		int k;
+		p++;
 
-    Box_Map[k].dsv = Box_Map[k].updtd_dsv;
-    //printf("I: %d Box %d:  dsv %f\n",p,k,Box_Map[k].dsv);
-  }
-  printf("I: %d Box %d:  dsv %f\n",p,0,Box_Map[0].dsv);
-  //printf("----------------------------------------------\n");
-} //end loop;
+		//update new dsv values
+		for(k = 0; k < num_boxes; k++){
+
+		  Box_Map[k].dsv = Box_Map[k].updtd_dsv;
+		  //printf("I: %ld Box %d:  dsv %f\n",(long)tn,k,Box_Map[k].dsv);
+		}
+	// }
+	}
+ 
+	#pragma omp barrier
+	#pragma omp master
+	{
+		updateMaxMin();
+		number_of_threads = omp_get_num_threads();
+
+	}
+	//printf("yes 2\n");
+	#pragma omp barrier
+  } //end loop
+	#pragma omp barrier
+}
+#pragma omp barrier
+
+
+
 chrono::system_clock::time_point t2 = chrono::system_clock::now();
 chrono::duration<double> time_span = chrono::duration_cast< chrono::duration<double> > (t2 - t1);
 gettimeofday(&tv2,NULL);
@@ -329,6 +394,7 @@ printf("Max DSV     : %f\n",max_dsv);
 printf("Min DSV     : %f\n",min_dsv);
 printf("Affect rate : %f\n",affect_rate);
 printf("Epsilon     : %f\n",epsilon);
+printf("Thread Count: %d\n",number_of_threads);
 printf("Elapsed time (clock) in seconds  : %f\n",clck_secs);
 printf ("Elapsed time (time) in seconds   : %f \n",
          (double) (tv2.tv_usec - tv1.tv_usec) / 1000000 +
@@ -341,7 +407,6 @@ printf("***********************************************************\n");
 
 /*for(i = 0; i < num_boxes; i++){
  printf("Box: %d DSV: %f \n",i,Box_Map[i].dsv);
-
 }*/
 
 for(i = 0; i < num_boxes; i++){
@@ -360,8 +425,6 @@ return 0;
   @params: epsln user defined Epsilon
            n_boxes total number of boxes
            Box_Map: a map containing <Box_id,Box> pairs
-
-
 */
 int is_converged(float epsln, int n_boxes, map<int,Box> Box_Map){
 
@@ -383,6 +446,7 @@ int is_converged(float epsln, int n_boxes, map<int,Box> Box_Map){
   float diff = (max_dsv - min_dsv);
 
   int ret_val = 0;
+
 
 
   if(diff <= epsln*max_dsv ){
@@ -449,9 +513,23 @@ int get_neighbor_contact_length(Box b, Box n, int side_or_not){
  return len;
 }
 //calculates new dsv for a box[i] wh
-void *calcNewDSVs(void *thrdNum){
-  long i = (long)thrdNum;
-  //for(i = 0; i < num_boxes; i++){ converted for pthreads in main
+void *calcNewDSVs(long thrdNum){
+
+long thrd_id = (long)thrdNum;
+//printf("thrd_id is %ld\n",thrd_id);
+long n = num_boxes / number_of_threads;
+
+long i = thrd_id * n;
+long max;
+if(thrd_id != number_of_threads -1){
+   max = i + n;
+}else{
+  max = num_boxes;
+}
+  //printf("box_limit in calcNewDSVs is %ld \n",max);
+  //printf("last box index is in calcNewDSVs is %ld\n",i);
+
+  for(i = thrd_id * n; i < max; i++){
      //Box b = Box_Map[i];
      float box_new_dsv;
      float average_surrounding_temp;
@@ -517,129 +595,49 @@ void *calcNewDSVs(void *thrdNum){
 
      average_surrounding_temp = (top_temp_sum + btm_temp_sum + rght_temp_sum
        + lft_temp_sum) / (float)(perim);
+    // pthread_mutex_lock( &mutex1 );
      Box_Map[i].updtd_dsv = bdsv - (bdsv - average_surrounding_temp) * affect_rate;
-
-  //}
-  pthread_exit(NULL);
+   //  pthread_mutex_unlock( &mutex1 );
+  }
+  return NULL;
 
 
 }
-/**************   TESTING SECTION FOR REFERENCE *****************/
-/*
 
-printf("\n\n");
-printf("###########################\n");
-printf("##    Struct Testing     ##\n");
-printf("###########################\n");
-int i;
 
-for(i = 0; i < num_boxes; i++){
-  printf("Box ID: %d\n",i);
-  printf("Box xPos : %d\n",Box_Map[i].xPos);
-  printf("Box yPos : %d\n",Box_Map[i].yPos);
-  printf("Box h    : %d\n",Box_Map[i].h);
-  printf("Box w    : %d\n",Box_Map[i].w);
 
-  //top test
-  printf("Box T_N  : %d\n",Box_Map[i].n_topNghbrs);
-  printf("Box T_N_L: ");
-  int j;
-  for(j = 0; j < Box_Map[i].n_topNghbrs; j++){
-    printf(" %d",Box_Map[i].t_Nghbrs[j]);
-  }
-  printf("\n");
 
-  //bottom test
-  printf("Box B_N  : %d\n",Box_Map[i].n_botNghbrs);
-  printf("Box B_N_L: ");
-
-  for(j = 0; j < Box_Map[i].n_botNghbrs; j++){
-    printf(" %d",Box_Map[i].b_Nghbrs[j]);
-  }
-  printf("\n");
-
-  //left test
-  printf("Box L_N  : %d\n",Box_Map[i].n_lftNghbrs);
-  printf("Box L_N_L: ");
-
-  for(j = 0; j < Box_Map[i].n_lftNghbrs; j++){
-    printf(" %d",Box_Map[i].l_Nghbrs[j]);
-  }
-  printf("\n");
-
-  //right test
-  printf("Box R_N  : %d\n",Box_Map[i].n_rhtNghbrs);
-  printf("Box R_N_L: ");
-
-  for(j = 0; j < Box_Map[i].n_rhtNghbrs; j++){
-    printf(" %d",Box_Map[i].r_Nghbrs[j]);
-  }
-  printf("\n");
-  printf("Box DSV  : %f\n",Box_Map[i].dsv);
-  printf("##########################\n");
-} //end print t */
-/*
-int test = get_neighbor_contact_length(Box_Map[38],Box_Map[22],0);
-printf("length was %d\n",test);
-test = get_neighbor_contact_length(Box_Map[36],Box_Map[20],0);
-printf("36 20 length was %d\n",test);
-test = get_neighbor_contact_length(Box_Map[36],Box_Map[35],1);
-printf("36 35 length was %d\n",test);
-test = get_neighbor_contact_length(Box_Map[36],Box_Map[37],1);
-printf("36 37 length was %d\n",test);*/
-//printf("entering is converged loop;\n");
+void updateMaxMin(){
 
 /*
-//bottom neighbor tests
-int test = get_neighbor_contact_length(Box_Map[1],Box_Map[5],0);
-printf("box 1 neighbor 5 length was %d\n",test);
- test = get_neighbor_contact_length(Box_Map[1],Box_Map[6],0);
-printf("box 1 neighbor 6 length was %d\n",test);
- test = get_neighbor_contact_length(Box_Map[1],Box_Map[7],0);
-printf("box 1 neighbor 7 length was %d\n",test);
- test = get_neighbor_contact_length(Box_Map[1],Box_Map[8],0);
-printf("box 1 neighbor 8 length was %d\n",test);
-//top nieghtbor test
-test = get_neighbor_contact_length(Box_Map[5],Box_Map[1],0);
-printf("box 5 neighbor 1 length was %d\n",test);
- test = get_neighbor_contact_length(Box_Map[6],Box_Map[1],0);
-printf("box 6 neighbor 1 length was %d\n",test);
-//printf("Box 7 x: %d y: %d nT: %d neig: %d\n",Box_Map[7].xPos,Box_Map[7].yPos, Box_Map[7].n_topNghbrs, Box_Map[7].t_Nghbrs[0]);
- test = get_neighbor_contact_length(Box_Map[7],Box_Map[1],0);
-printf("box 7 neighbor 1 length was %d\n",test);
- test = get_neighbor_contact_length(Box_Map[8],Box_Map[1],0);
-printf("box 8 neighbor 1 length was %d\n",test);
-//left nieghbor test
-test = get_neighbor_contact_length(Box_Map[8],Box_Map[7],1);
-printf("box 8 neighbor 7 length was %d\n",test);
- test = get_neighbor_contact_length(Box_Map[8],Box_Map[9],1);
-printf("box 8 neighbor 9 length was %d\n",test);
- test = get_neighbor_contact_length(Box_Map[8],Box_Map[10],1);
-printf("box 8 neighbor 10 length was %d\n",test);
- test = get_neighbor_contact_length(Box_Map[8],Box_Map[11],1);
-printf("box 8 neighbor 11 length was %d\n",test);
-//right neighbor tests
-test = get_neighbor_contact_length(Box_Map[6],Box_Map[7],1);
-printf("box 6 neighbor 7 length was %d\n",test);
- test = get_neighbor_contact_length(Box_Map[6],Box_Map[9],1);
-printf("box 6 neighbor 9 length was %d\n",test);
- test = get_neighbor_contact_length(Box_Map[6],Box_Map[10],1);
-printf("box 6 neighbor 10 length was %d\n",test);
- test = get_neighbor_contact_length(Box_Map[6],Box_Map[11],1);
-printf("box 6 neighbor 11 length was %d\n",test);
+loat max_dsv = Box_Map[0].dsv;
+  float min_dsv = Box_Map[0].dsv;
+  int i;
+  for(i = 0; i < n_boxes; i++){
+     Box b = Box_Map[i];
+     if(b.dsv < min_dsv){
+       min_dsv = b.dsv;
+     }
+     if(b.dsv > max_dsv){
+       max_dsv = b.dsv;
+     }
+  }
+  float diff = (max_dsv - min_dsv);
+  int ret_val = 0;
+*/
+  //printf("min and max updated\n");
+  maxDsv = Box_Map[0].dsv;
+  minDsv = Box_Map[0].dsv;
+  int i;
+  for(i = 0; i < num_boxes; i++){
 
-test = get_neighbor_contact_length(Box_Map[7],Box_Map[9],0);
-printf("box 7 neighbor 9 length was %d\n",test);
+     Box b = Box_Map[i];
 
-test = get_neighbor_contact_length(Box_Map[12],Box_Map[5],0);
-printf("box 12 neighbor 5 length was %d\n",test);
- test = get_neighbor_contact_length(Box_Map[5],Box_Map[12],0);
-printf("box 5 neighbor 12 length was %d\n",test);
- test = get_neighbor_contact_length(Box_Map[12],Box_Map[6],0);
-printf("box 12 neighbor 6 length was %d\n",test);
- test = get_neighbor_contact_length(Box_Map[6],Box_Map[12],0);
-printf("box 6 neighbor 12 length was %d\n",test);
-test = get_neighbor_contact_length(Box_Map[13],Box_Map[14],1);
-printf("box 13 neighbor 14 length was %d\n",test);
-test = get_neighbor_contact_length(Box_Map[14],Box_Map[13],1);
-printf("box 14 neighbor 13 length was %d\n",test);*/
+     if(b.dsv < minDsv){
+       minDsv = b.dsv;
+     }
+     if(b.dsv > maxDsv){
+       maxDsv = b.dsv;
+     }
+  }
+}

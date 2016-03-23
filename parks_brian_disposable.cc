@@ -17,7 +17,7 @@ using namespace std;
 int num_boxes = 0;
 int m_width = 0;
 int m_height = 0;
-
+int number_of_threads;
 
 /*
   Struct to hold box information
@@ -36,53 +36,44 @@ typedef struct BoxInfo{
   int *l_Nghbrs; //left neighbors
   int *r_Nghbrs; //right neighbors
 } Box;
-struct BoxInfo *boxes;
-//map<int,Box> Box_Map;
-float epsilon;
-float affect_rate;
-
-int number_of_threads = 200;
 
 //returns contact length between box b and n, see implemnation for more detail
 int get_neighbor_contact_length(Box b, Box n, int side_or_not);
 
 //returns 1 iff convergance condition is met, see implemnation for more detail
-int is_converged(float epsln,int num_boxes);
-
-//move logic to function in order for pthread to call this section of code
-void *calcNewDSVs(void *thrdNum);
-
+int is_converged(float epsln,int num_boxes, map<int,Box> Box_Map);
+void updateMaxMin();
 int main(int argc, char* argv[]){
 
 if(argc < 3){
   perror("Incorrect number of parameters. Please see example below\n");
-  perror("a.out <affect_rate> <epsilon> <threads> < file.txt");
+  perror("a.out <affect_rate><epsilon><number_of_threads> < datafile");
   exit(1);
 }
 /*
  Use a map to with <Key,Value> = <Box_id,Box>
 */
+map<int,Box> Box_Map;
+//char *inFileName = argv[3];
+float epsilon;
+float affect_rate;
 
-//char *inFileName = argv[1];
+sscanf(argv[3],"%d",&number_of_threads);
+sscanf(argv[2],"%f",&epsilon);
 
 
+printf("Number of threads specified: %d\n",number_of_threads);
 sscanf(argv[1],"%f",&affect_rate);
 //printf("affect_rate is %f\n",affect_rate);
-sscanf(argv[2],"%f",&epsilon);
-//printf("epsilon is %f\n",epsilon);
-sscanf(argv[3],"%d",&number_of_threads);
-
 
 char line[256];  //256 bytes should be enough for one line from input file
 /*FILE *inFilePointer;
 inFilePointer = fopen(inFileName,"r");
-
 if(inFilePointer == NULL){
     perror("error opening data input file\n");
     exit(2);
 }*/
 /*
-
 printf("line is %s\n",line);
 std::cin.getline(line,256);
 printf("line is %s\n",line);
@@ -106,7 +97,7 @@ token = strtok(line,delim);
 //printf("token is %s\n",token);
 num_boxes = atoi(token); //set number of boxes
 //printf("number of boxes is: %d\n",num_boxes);
-boxes = (struct BoxInfo *)malloc(sizeof(struct BoxInfo) * num_boxes);
+
 token = strtok(NULL,delim);
 //printf("token is %s\n",token);
 m_width = atoi(token); //set width of grid
@@ -157,21 +148,17 @@ while(!cin.eof()){ //gets box id line
   token = strtok(NULL,delim);
   int box_width = atoi(token);
   //printf("box width is %d\n",box_width);
-  boxes[box_id].xPos = upr_lft_x;
-  //Box_Map[box_id].xPos = upr_lft_x;
-  //Box_Map[box_id].yPos = upr_lft_y;
-  boxes[box_id].yPos = upr_lft_y;
-  //Box_Map[box_id].h = box_height;
-  boxes[box_id].h = box_height;
-  //Box_Map[box_id].w = box_width;
-  boxes[box_id].w = box_width;
+
+  Box_Map[box_id].xPos = upr_lft_x;
+  Box_Map[box_id].yPos = upr_lft_y;
+  Box_Map[box_id].h = box_height;
+  Box_Map[box_id].w = box_width;
 
   std::cin.getline(line,256); // top neighbor line
 
   token = strtok(line,delim);
   int num_of_top_nghbrs = atoi(token);
-  //Box_Map[box_id].n_topNghbrs = num_of_top_nghbrs;
-  boxes[box_id].n_topNghbrs = num_of_top_nghbrs;
+  Box_Map[box_id].n_topNghbrs = num_of_top_nghbrs;
   //printf("num top neighbors: %d\n",num_of_top_nghbrs);
 
   if(num_of_top_nghbrs != 0){
@@ -186,9 +173,7 @@ while(!cin.eof()){ //gets box id line
       t_neighbors[i] = neighbor;
     }
 
-   //Box_Map[box_id].t_Nghbrs = t_neighbors;
-   boxes[box_id].t_Nghbrs = t_neighbors;
-
+   Box_Map[box_id].t_Nghbrs = t_neighbors;
     std::cin.getline(line,256); //bottom neighbor line
   }else{
     std::cin.getline(line,256); // bottom neighbor line
@@ -201,8 +186,7 @@ while(!cin.eof()){ //gets box id line
 
   token = strtok(line,delim);
   int num_of_btm_nghbrs = atoi(token);
-  //Box_Map[box_id].n_botNghbrs = num_of_btm_nghbrs;
-  boxes[box_id].n_botNghbrs = num_of_btm_nghbrs;
+  Box_Map[box_id].n_botNghbrs = num_of_btm_nghbrs;
   //printf("num btm neighbors: %d\n",num_of_btm_nghbrs);
   if(num_of_btm_nghbrs != 0){
     int *b_neighbors = (int *)malloc(sizeof(int)*num_of_btm_nghbrs);
@@ -214,8 +198,7 @@ while(!cin.eof()){ //gets box id line
       //printf("(%d) %d \n",i,neighbor);
       b_neighbors[i] = neighbor;
     }
-    //Box_Map[box_id].b_Nghbrs = b_neighbors;
-    boxes[box_id].b_Nghbrs = b_neighbors;
+    Box_Map[box_id].b_Nghbrs = b_neighbors;
     std::cin.getline(line,256); // left neighbor line
   }else{
     std::cin.getline(line,256); // left neighbor line
@@ -226,8 +209,7 @@ while(!cin.eof()){ //gets box id line
 
   token = strtok(line,delim);
   int num_of_lft_nghbrs = atoi(token);
-  //Box_Map[box_id].n_lftNghbrs = num_of_lft_nghbrs;
-    boxes[box_id].n_lftNghbrs = num_of_lft_nghbrs;
+  Box_Map[box_id].n_lftNghbrs = num_of_lft_nghbrs;
   //printf("num lft neighbors: %d\n",num_of_lft_nghbrs);
   if(num_of_lft_nghbrs != 0){
     int *l_neighbors = (int *)malloc(sizeof(int)*num_of_lft_nghbrs);
@@ -240,8 +222,7 @@ while(!cin.eof()){ //gets box id line
       l_neighbors[i] = neighbor;
 
     }
-    //Box_Map[box_id].l_Nghbrs = l_neighbors;
-    boxes[box_id].l_Nghbrs = l_neighbors;
+    Box_Map[box_id].l_Nghbrs = l_neighbors;
     std::cin.getline(line,256); // right neighbor line
   }else{
     std::cin.getline(line,256); // right neighbor line
@@ -251,8 +232,7 @@ while(!cin.eof()){ //gets box id line
 
   token = strtok(line,delim);
   int num_of_rght_nghbrs = atoi(token);
-  //Box_Map[box_id].n_rhtNghbrs = num_of_rght_nghbrs;
-  boxes[box_id].n_rhtNghbrs = num_of_rght_nghbrs;
+  Box_Map[box_id].n_rhtNghbrs = num_of_rght_nghbrs;
   //printf("num right neighbors: %d\n",Box_Map[box_id].n_rhtNghbrs);
   if(num_of_rght_nghbrs != 0){
     int *r_neighbors = (int *)malloc(sizeof(int)*num_of_rght_nghbrs);
@@ -265,8 +245,7 @@ while(!cin.eof()){ //gets box id line
       r_neighbors[i] = neighbor;
 
     }
-    //Box_Map[box_id].r_Nghbrs = r_neighbors;
-      boxes[box_id].r_Nghbrs = r_neighbors;
+    Box_Map[box_id].r_Nghbrs = r_neighbors;
   }else{
 
   }
@@ -276,112 +255,95 @@ while(!cin.eof()){ //gets box id line
   float dsv;
   sscanf(token,"%f",&dsv);
   //printf("dsv is %f\n",dsv);
-  //Box_Map[box_id].dsv = dsv;
-  boxes[box_id].dsv = dsv;
+  Box_Map[box_id].dsv = dsv;
   std::cin.getline(line,256);
 }
 struct timeval tv1,tv2;
 gettimeofday(&tv1,NULL);
 clock_t begin = clock();
+int num_threads_given;
 chrono::system_clock::time_point t1 = chrono::system_clock::now();
 int p = 0;
-while(is_converged(epsilon,num_boxes) != 1 ){
+//omp_set_dynamic(0);
+omp_set_num_threads(number_of_threads);
+while(is_converged(epsilon,num_boxes,Box_Map) != 1 /*&& p < 40000*/){
   p++;
   //printf("here\n");
-  int treturn;
-  int thread_index;
-  long l;
-  #pragma omp parallel num_threads(number_of_threads)
-  {
-    int i,nthrds,id;
-    id = omp_get_thread_num();
-    nthrds = omp_get_num_threads();
-    for(i = id; i < num_boxes; i = i + nthrds){ //converted for pthreads in main
-       //Box b = Box_Map[i];
-       float box_new_dsv;
-       float average_surrounding_temp;
-       int bw = boxes[i].w;
-       int bh = boxes[i].h;
-       float bdsv = boxes[i].dsv;
-       //top neighbors
-       float top_temp_sum = 0;
-       int j;
-       for(j = 0; j < boxes[i].n_topNghbrs; j++){
-         Box t_n_box = boxes[boxes[i].t_Nghbrs[j]];
-         float t = t_n_box.dsv;
-         int len = get_neighbor_contact_length(boxes[i],t_n_box,0);
-         top_temp_sum += (t * len);
-       }
+  #pragma omp parallel for 
+  for(int i = 0; i < num_boxes; i++){
+     //if(i == 0){printf("number of threads is %d\n",omp_get_num_threads());}
+     Box b = Box_Map[i];
+     float box_new_dsv;
+     float average_surrounding_temp;
 
-       //bottom neighbors
-       float btm_temp_sum = 0;
+     //top neighbors
+     float top_temp_sum = 0;
+     int j;
+     for(j = 0; j < b.n_topNghbrs; j++){
+       Box t_n_box = Box_Map[Box_Map[i].t_Nghbrs[j]];
+       float t = t_n_box.dsv;
+       int len = get_neighbor_contact_length(b,t_n_box,0);
+       top_temp_sum += (t * len);
+     }
 
-       for(j = 0; j < boxes[i].n_botNghbrs; j++){
-         Box t_n_box = boxes[boxes[i].b_Nghbrs[j]];
-         float t = t_n_box.dsv;
-         int len = get_neighbor_contact_length(boxes[i],t_n_box,0);
-         btm_temp_sum += (t * len);
-       }
+     //bottom neighbors
+     float btm_temp_sum = 0;
 
-       //Left neighbors
-       float lft_temp_sum = 0;
+     for(j = 0; j < b.n_botNghbrs; j++){
+       Box t_n_box = Box_Map[Box_Map[i].b_Nghbrs[j]];
+       float t = t_n_box.dsv;
+       int len = get_neighbor_contact_length(b,t_n_box,0);
+       btm_temp_sum += (t * len);
+     }
 
-       for(j = 0; j < boxes[i].n_lftNghbrs; j++){
-         Box t_n_box = boxes[boxes[i].l_Nghbrs[j]];
-         float t = t_n_box.dsv;
-         int len = get_neighbor_contact_length(boxes[i],t_n_box,1);
-         lft_temp_sum += (t * len);
-       }
+     //Left neighbors
+     float lft_temp_sum = 0;
+
+     for(j = 0; j < b.n_lftNghbrs; j++){
+       Box t_n_box = Box_Map[Box_Map[i].l_Nghbrs[j]];
+       float t = t_n_box.dsv;
+       int len = get_neighbor_contact_length(b,t_n_box,1);
+       lft_temp_sum += (t * len);
+     }
 
 
-       //right neighbors
-       float rght_temp_sum = 0;
+     //right neighbors
+     float rght_temp_sum = 0;
 
-       for(j = 0; j < boxes[i].n_rhtNghbrs; j++){
-         Box t_n_box = boxes[boxes[i].r_Nghbrs[j]];
-         float t = t_n_box.dsv;
-         int len = get_neighbor_contact_length(boxes[i],t_n_box,1);
-         rght_temp_sum += (t * len);
-       }
-       int perim = 2*(bw + bh);
+     for(j = 0; j < b.n_rhtNghbrs; j++){
+       Box t_n_box = Box_Map[Box_Map[i].r_Nghbrs[j]];
+       float t = t_n_box.dsv;
+       int len = get_neighbor_contact_length(b,t_n_box,1);
+       rght_temp_sum += (t * len);
+     }
+     int perim = 2*(b.w + b.h);
 
-       //set outside boxes to current box dsv
-       if(top_temp_sum == 0){
-         top_temp_sum = bdsv * bw;
-       }
-       if(btm_temp_sum == 0){
-         btm_temp_sum = bdsv * bw;
-       }
-       if(lft_temp_sum == 0){
-         lft_temp_sum = bdsv * bh;
-       }
-       if(rght_temp_sum == 0){
-         rght_temp_sum = bdsv * bh;
-       }
+     //set outside boxes to current box dsv
+     if(top_temp_sum == 0){
+       top_temp_sum = b.dsv * b.w;
+     }
+     if(btm_temp_sum == 0){
+       btm_temp_sum = b.dsv * b.w;
+     }
+     if(lft_temp_sum == 0){
+       lft_temp_sum = b.dsv * b.h;
+     }
+     if(rght_temp_sum == 0){
+       rght_temp_sum = b.dsv * b.h;
+     }
 
 
-       average_surrounding_temp = (top_temp_sum + btm_temp_sum + rght_temp_sum
-         + lft_temp_sum) / (float)(perim);
-       boxes[i].updtd_dsv = bdsv - (bdsv - average_surrounding_temp) * affect_rate;
-
-    }
-    #pragma omp critical
-    {
-      //wait for threads to complete before moving on to update the dsv for boxes
-      int k;
-      //update new dsv values
-      for(k = 0; k < num_boxes; k++){
-
-        //Box_Map[k].dsv = Box_Map[k].updtd_dsv;
-        boxes[k].dsv = boxes[k].updtd_dsv;
-        //printf("I: %d Box %d:  dsv %f\n",p,k,Box_Map[k].dsv);
-      }
-    }
-
+     average_surrounding_temp = (top_temp_sum + btm_temp_sum + rght_temp_sum
+       + lft_temp_sum) / (float)(perim);
+     Box_Map[i].updtd_dsv = b.dsv - (b.dsv - average_surrounding_temp) * affect_rate;
 
   }
+  int k;
+  for(k = 0; k < num_boxes; k++){
 
-
+    Box_Map[k].dsv = Box_Map[k].updtd_dsv;
+    //printf("I: %d Box %d:  dsv %f\n",p,k,Box_Map[k].dsv);
+  }
   //printf("----------------------------------------------\n");
 } //end loop;
 chrono::system_clock::time_point t2 = chrono::system_clock::now();
@@ -390,12 +352,11 @@ gettimeofday(&tv2,NULL);
 clock_t end = clock();
 float clck_secs = float(end - begin) / CLOCKS_PER_SEC;
 
-//float max_dsv = Box_Map[0].dsv;
-float max_dsv = boxes[0].dsv;
-float min_dsv = boxes[0].dsv;
+float max_dsv = Box_Map[0].dsv;
+float min_dsv = Box_Map[0].dsv;
 int i;
 for(i = 0; i < num_boxes; i++){
-   Box b = boxes[i];
+   Box b = Box_Map[i];
    if(b.dsv < min_dsv){
      min_dsv = b.dsv;
    }
@@ -410,6 +371,7 @@ printf("Max DSV     : %f\n",max_dsv);
 printf("Min DSV     : %f\n",min_dsv);
 printf("Affect rate : %f\n",affect_rate);
 printf("Epsilon     : %f\n",epsilon);
+printf("Number of threads specified   : %d\n",number_of_threads);
 printf("Elapsed time (clock) in seconds  : %f\n",clck_secs);
 printf ("Elapsed time (time) in seconds   : %f \n",
          (double) (tv2.tv_usec - tv1.tv_usec) / 1000000 +
@@ -425,18 +387,11 @@ printf("***********************************************************\n");
 
 }*/
 
-/*for(i = 0; i < num_boxes; i++){
+for(i = 0; i < num_boxes; i++){
   free(Box_Map[i].t_Nghbrs);
   free(Box_Map[i].b_Nghbrs);
   free(Box_Map[i].l_Nghbrs);
   free(Box_Map[i].r_Nghbrs);
-
-}*/
-for(i = 0; i < num_boxes; i++){
-  free(boxes[i].t_Nghbrs);
-  free(boxes[i].b_Nghbrs);
-  free(boxes[i].l_Nghbrs);
-  free(boxes[i].r_Nghbrs);
 
 }
 return 0;
@@ -451,14 +406,14 @@ return 0;
 
 
 */
-int is_converged(float epsln, int n_boxes){
+int is_converged(float epsln, int n_boxes, map<int,Box> Box_Map){
 
-  float max_dsv = boxes[0].dsv;
-  float min_dsv = boxes[0].dsv;
+  float max_dsv = Box_Map[0].dsv;
+  float min_dsv = Box_Map[0].dsv;
   int i;
   for(i = 0; i < n_boxes; i++){
 
-     Box b = boxes[i];
+     Box b = Box_Map[i];
 
      if(b.dsv < min_dsv){
        min_dsv = b.dsv;
@@ -536,80 +491,25 @@ int get_neighbor_contact_length(Box b, Box n, int side_or_not){
 
  return len;
 }
-//calculates new dsv for a box[i] wh
-void *calcNewDSVs(void *thrdNum){
-  long i = (long)thrdNum;
-  //for(i = 0; i < num_boxes; i++){ converted for pthreads in main
-     //Box b = Box_Map[i];
-     float box_new_dsv;
-     float average_surrounding_temp;
-     int bw = boxes[i].w;
-     int bh = boxes[i].h;
-     float bdsv = boxes[i].dsv;
-     //top neighbors
-     float top_temp_sum = 0;
-     int j;
-     for(j = 0; j < boxes[i].n_topNghbrs; j++){
-       Box t_n_box = boxes[boxes[i].t_Nghbrs[j]];
-       float t = t_n_box.dsv;
-       int len = get_neighbor_contact_length(boxes[i],t_n_box,0);
-       top_temp_sum += (t * len);
+void updateMaxMin(){
+/*
+  //printf("min and max updated\n");
+  maxDsv = Box_Map[0].dsv;
+  minDsv = Box_Map[0].dsv;
+  int i;
+  for(i = 0; i < num_boxes; i++){
+
+     Box b = Box_Map[i];
+
+     if(b.dsv < minDsv){
+       minDsv = b.dsv;
      }
-
-     //bottom neighbors
-     float btm_temp_sum = 0;
-
-     for(j = 0; j < boxes[i].n_botNghbrs; j++){
-       Box t_n_box = boxes[boxes[i].b_Nghbrs[j]];
-       float t = t_n_box.dsv;
-       int len = get_neighbor_contact_length(boxes[i],t_n_box,0);
-       btm_temp_sum += (t * len);
+     if(b.dsv > maxDsv){
+       maxDsv = b.dsv;
      }
-
-     //Left neighbors
-     float lft_temp_sum = 0;
-
-     for(j = 0; j < boxes[i].n_lftNghbrs; j++){
-       Box t_n_box = boxes[boxes[i].l_Nghbrs[j]];
-       float t = t_n_box.dsv;
-       int len = get_neighbor_contact_length(boxes[i],t_n_box,1);
-       lft_temp_sum += (t * len);
-     }
-
-
-     //right neighbors
-     float rght_temp_sum = 0;
-
-     for(j = 0; j < boxes[i].n_rhtNghbrs; j++){
-       Box t_n_box = boxes[boxes[i].r_Nghbrs[j]];
-       float t = t_n_box.dsv;
-       int len = get_neighbor_contact_length(boxes[i],t_n_box,1);
-       rght_temp_sum += (t * len);
-     }
-     int perim = 2*(bw + bh);
-
-     //set outside boxes to current box dsv
-     if(top_temp_sum == 0){
-       top_temp_sum = bdsv * bw;
-     }
-     if(btm_temp_sum == 0){
-       btm_temp_sum = bdsv * bw;
-     }
-     if(lft_temp_sum == 0){
-       lft_temp_sum = bdsv * bh;
-     }
-     if(rght_temp_sum == 0){
-       rght_temp_sum = bdsv * bh;
-     }
-
-
-     average_surrounding_temp = (top_temp_sum + btm_temp_sum + rght_temp_sum
-       + lft_temp_sum) / (float)(perim);
-     boxes[i].updtd_dsv = bdsv - (bdsv - average_surrounding_temp) * affect_rate;
-
-  //}
-  pthread_exit(NULL);
+  }*/
 }
+
 /**************   TESTING SECTION FOR REFERENCE *****************/
 /*
 
