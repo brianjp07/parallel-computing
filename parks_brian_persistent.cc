@@ -4,7 +4,7 @@
 #include <iostream>
 #include <stdlib.h>
 #include <sys/time.h>
-#include <map>  
+#include <map>
 #include <ctime>
 #include <chrono>
 #include <omp.h>
@@ -337,7 +337,7 @@ long tn;
 
 
     //pthread_mutex_lock( &mutex1 );
-	
+
     //if((long)thrdNum == 0){
 	#pragma omp master
 	{
@@ -352,7 +352,7 @@ long tn;
 		}
 	// }
 	}
- 
+
 	#pragma omp barrier
 	#pragma omp master
 	{
@@ -365,7 +365,7 @@ long tn;
   } //end loop
 	#pragma omp barrier
 }
-#pragma omp barrier
+
 
 
 
