@@ -42,12 +42,10 @@ float epsilon;
 float affect_rate;
 
 int number_of_threads = 200;
+int act_num_threads;
 long *start_index;
 float minDsv;
 float maxDsv;
-pthread_t *threads;
-pthread_mutex_t mutex1 = PTHREAD_MUTEX_INITIALIZER;
-pthread_barrier_t   barrier;
 int p = 0;
 //int last_box_index = 0;
 //returns contact length between box b and n, see implemnation for more detail
@@ -283,62 +281,45 @@ for(long i = 0; i < number_of_threads; i++){
   36 - 71
   71 - 107
 */
-updateMaxMin();
+
 struct timeval tv1,tv2;
 gettimeofday(&tv1,NULL);
 clock_t begin = clock();
 chrono::system_clock::time_point t1 = chrono::system_clock::now();
 
-/*
-threads = (pthread_t *) malloc(sizeof(*threads) * number_of_threads);
-pthread_barrier_init (&barrier, NULL, number_of_threads);
-long thread_index;
-for(thread_index = 0; thread_index < number_of_threads; thread_index++){
-
-  pthread_create(&threads[thread_index],NULL,convergenceLoop,(void *)thread_index);
-}
-for(thread_index = 0; thread_index < number_of_threads; thread_index++){
-  pthread_join(threads[thread_index],NULL);
-}
-//printf("here bbbbbbbbb\n");
-for(thread_index = 0; thread_index < number_of_threads; thread_index++){
-  try{
-    pthread_cancel(threads[thread_index]);
-  }catch (std::exception& e){
-  }
-
-}*/
 updateMaxMin();
+printf("Number of threads is %d\n",number_of_threads);
 omp_set_num_threads(number_of_threads);
-long tn;
-#pragma omp parallel private(number_of_threads,tn)
+long tid;
+#pragma omp parallel private(number_of_threads,tid)
 {
-
  while((maxDsv - minDsv) > (epsilon*maxDsv)){
-    tn = omp_get_thread_num();
-    calcNewDSVs(tn);
-	//printf("tn incl is %ld\n",tn);
-    //barrier
-    //pthread_barrier_wait (&barrier);
+
+  //printf("max thrds is %d\n",omp_get_max_threads());
+  //printf("act_num_threads is %d\n",act_num_threads);
+  tid = omp_get_thread_num();
+  calcNewDSVs(tid);
+
 	#pragma omp barrier
-    /*if((long)thrdNum == number_of_threads-1){p++;}
-    //iteration counter
-    long thrd_id = (long)thrdNum;
-    long n = num_boxes / number_of_threads;
-    long i = thrd_id * n;
-    long max;
-    if(thrd_id != number_of_threads -1){
-       max = i + n;
-    }else{
-      max = num_boxes;
-    }*/
-
-    //printf("yes\n");
 
 
-    //pthread_mutex_lock( &mutex1 );
+  //printf("thrd_id is %ld\n",thrd_id);
+  long n = num_boxes / omp_get_num_threads();
+  long k = tid * n;
+  long max;
+  if(tid != omp_get_num_threads() -1){
+     max = k + n;
+  }else{
+     max = num_boxes;
+  }
+    //printf("box_limit in calcNewDSVs is %ld \n",max);
+    //printf("last box index is in calcNewDSVs is %ld\n",i);
 
-    //if((long)thrdNum == 0){
+    for(k = tid * n; k < max; k++){
+      Box_Map[k].dsv = Box_Map[k].updtd_dsv;
+    }
+
+      /*
 	#pragma omp master
 	{
 		int k;
@@ -350,24 +331,21 @@ long tn;
 		  Box_Map[k].dsv = Box_Map[k].updtd_dsv;
 		  //printf("I: %ld Box %d:  dsv %f\n",(long)tn,k,Box_Map[k].dsv);
 		}
-	// }
-	}
+
+	}*/
 
 	#pragma omp barrier
 	#pragma omp master
 	{
 		updateMaxMin();
-		number_of_threads = omp_get_num_threads();
-
+    act_num_threads = omp_get_num_threads();
+    p++;
 	}
-	//printf("yes 2\n");
+
 	#pragma omp barrier
   } //end loop
-	#pragma omp barrier
+	//#pragma omp barrier
 }
-
-
-
 
 chrono::system_clock::time_point t2 = chrono::system_clock::now();
 chrono::duration<double> time_span = chrono::duration_cast< chrono::duration<double> > (t2 - t1);
@@ -394,7 +372,8 @@ printf("Max DSV     : %f\n",max_dsv);
 printf("Min DSV     : %f\n",min_dsv);
 printf("Affect rate : %f\n",affect_rate);
 printf("Epsilon     : %f\n",epsilon);
-printf("Thread Count: %d\n",number_of_threads);
+printf("Threads Specified: %d\n",number_of_threads);
+printf("Threads Allocated: %d\n",act_num_threads);
 printf("Elapsed time (clock) in seconds  : %f\n",clck_secs);
 printf ("Elapsed time (time) in seconds   : %f \n",
          (double) (tv2.tv_usec - tv1.tv_usec) / 1000000 +
@@ -517,11 +496,11 @@ void *calcNewDSVs(long thrdNum){
 
 long thrd_id = (long)thrdNum;
 //printf("thrd_id is %ld\n",thrd_id);
-long n = num_boxes / number_of_threads;
+long n = num_boxes / omp_get_num_threads();
 
 long i = thrd_id * n;
 long max;
-if(thrd_id != number_of_threads -1){
+if(thrd_id != omp_get_num_threads()-1){
    max = i + n;
 }else{
   max = num_boxes;
