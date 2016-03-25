@@ -11,7 +11,7 @@
 using namespace std;
 /*
   Brian Parks
-  CSE 5441 Lab 1 Dr. Jones
+  CSE 5441 Lab 3 Dr. Jones
   9 Feb 2016
 */
 int num_boxes = 0;
@@ -266,11 +266,14 @@ chrono::system_clock::time_point t1 = chrono::system_clock::now();
 int p = 0;
 //omp_set_dynamic(0);
 omp_set_num_threads(number_of_threads);
+int act_num_threads;
 while(is_converged(epsilon,num_boxes,Box_Map) != 1 /*&& p < 40000*/){
   p++;
+
   //printf("here\n");
-  #pragma omp parallel for 
+  #pragma omp parallel for
   for(int i = 0; i < num_boxes; i++){
+     act_num_threads = omp_get_num_threads();
      //if(i == 0){printf("number of threads is %d\n",omp_get_num_threads());}
      Box b = Box_Map[i];
      float box_new_dsv;
@@ -372,6 +375,7 @@ printf("Min DSV     : %f\n",min_dsv);
 printf("Affect rate : %f\n",affect_rate);
 printf("Epsilon     : %f\n",epsilon);
 printf("Number of threads specified   : %d\n",number_of_threads);
+printf("Number of threads allocated   : %d\n",act_num_threads);
 printf("Elapsed time (clock) in seconds  : %f\n",clck_secs);
 printf ("Elapsed time (time) in seconds   : %f \n",
          (double) (tv2.tv_usec - tv1.tv_usec) / 1000000 +

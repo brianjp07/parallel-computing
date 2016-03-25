@@ -11,7 +11,7 @@
 using namespace std;
 /*
   Brian Parks
-  CSE 5441 Lab 1 Dr. Jones
+  CSE 5441 Lab 3 Dr. Jones
   9 Feb 2016
 */
 int num_boxes = 0;
